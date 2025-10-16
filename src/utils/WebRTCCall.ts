@@ -234,6 +234,14 @@ export class WebRTCCall {
   private async handleSignal(signal: any): Promise<void> {
     if (!this.peerConnection) return;
 
+    // ✅ Ignorar sinais do próprio usuário
+    if (signal.from === this.userId) {
+      console.log('[WebRTC] Ignorando sinal do próprio usuário');
+      return;
+    }
+
+    console.log('[WebRTC] Sinal recebido:', signal.type, 'de:', signal.from);
+
     try {
       switch (signal.type) {
         case 'offer':

@@ -115,6 +115,7 @@ const Chat = () => {
   const { 
     callState, 
     startCall, 
+    answerCall,
     endCall, 
     toggleVideo, 
     toggleAudio, 
@@ -592,7 +593,8 @@ const Chat = () => {
           callType={incomingCall.callType}
           onAccept={() => {
             acceptCall();
-            startCall(
+            answerCall(
+              incomingCall.callId,
               incomingCall.conversationId,
               incomingCall.callType,
               {

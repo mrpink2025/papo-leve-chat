@@ -172,6 +172,7 @@ export const useNativeVideoCall = () => {
       if (!user) throw new Error('Usuário não autenticado');
 
       console.log(`[useNativeVideoCall] Atendendo chamada ${callId}`);
+      console.log(`[useNativeVideoCall] Canal será: call:${callId}`);
 
       const call = new WebRTCCall(conversationId, user.id, callType, false, callId);
 
