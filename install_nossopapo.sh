@@ -212,32 +212,21 @@ fi
 success "Build concluído e verificado"
 
 # Configurar Nginx
-log "🌐 Configurando Nginx..."
+log "🌐 Configurando Nginx (HTTP inicial)..."
 cat > /etc/nginx/sites-available/nossopapo << 'NGINXCONF'
 # Signed by Mr_Pink — Nosso Papo (nossopapo.net)
+# Configuração inicial HTTP (SSL será adicionado pelo Certbot)
 
 server {
     listen 80;
     listen [::]:80;
     server_name nossopapo.net www.nossopapo.net;
     
-    # Redirecionar HTTP para HTTPS
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name nossopapo.net www.nossopapo.net;
-
-    # SSL será configurado pelo Certbot
-    
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
     
     # Remove server tokens
     server_tokens off;
@@ -292,24 +281,72 @@ NGINXCONF
 # Ativar site
 ln -sf /etc/nginx/sites-available/nossopapo /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
-nginx -t >> "$INSTALL_LOG" 2>&1
-systemctl reload nginx
-success "Nginx configurado"
+
+# Testar configuração ANTES de recarregar
+log "🧪 Testando configuração do Nginx..."
+if ! nginx -t >> "$INSTALL_LOG" 2>&1; then
+    error "❌ Configuração do Nginx inválida! Execute: nginx -t"
+fi
+log "✓ Checkpoint: Configuração Nginx válida"
+
+# Recarregar apenas se teste passou
+log "🔄 Recarregando Nginx..."
+if ! systemctl reload nginx >> "$INSTALL_LOG" 2>&1; then
+    error "❌ Falha ao recarregar Nginx! Execute: systemctl status nginx"
+fi
+success "Nginx configurado e rodando (HTTP)"
+log "✓ Checkpoint: Nginx rodando na porta 80"
 
 # Configurar SSL com Certbot
 log "🔐 Configurando certificado SSL..."
-if [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
-    certbot --nginx -d "$DOMAIN" -d "www.${DOMAIN}" --non-interactive --agree-tos --email admin@${DOMAIN} --redirect >> "$INSTALL_LOG" 2>&1
-    success "Certificado SSL instalado"
+
+# Verificar se já existe certificado
+if [ -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
+    log "✅ Certificado SSL já existe"
+    SSL_STATUS="existing"
 else
-    log "Certificado SSL já existe"
+    log "📜 Solicitando certificado SSL via Certbot (timeout: 5min)..."
+    
+    # Executar com timeout de 5 minutos
+    if timeout 300 certbot --nginx \
+        -d "$DOMAIN" -d "www.${DOMAIN}" \
+        --non-interactive \
+        --agree-tos \
+        --email "admin@${DOMAIN}" \
+        --redirect \
+        --quiet >> "$INSTALL_LOG" 2>&1; then
+        
+        success "Certificado SSL instalado e HTTPS ativado"
+        SSL_STATUS="installed"
+        
+        # Testar configuração SSL
+        if ! nginx -t >> "$INSTALL_LOG" 2>&1; then
+            warning "⚠️  Configuração SSL criada mas inválida. Verifique: nginx -t"
+            SSL_STATUS="invalid"
+        fi
+        
+    else
+        EXIT_CODE=$?
+        if [ $EXIT_CODE -eq 124 ]; then
+            warning "⏱️  Certbot timeout após 5min. Configure manualmente: sudo certbot --nginx -d $DOMAIN"
+        else
+            warning "❌ Certbot falhou (código $EXIT_CODE). Verifique: 1) DNS apontando corretamente 2) Portas 80/443 abertas"
+            warning "Configure manualmente: sudo certbot --nginx -d $DOMAIN"
+        fi
+        log "⚠️  Continuando instalação sem SSL (site acessível via HTTP)"
+        SSL_STATUS="failed"
+    fi
 fi
 
+log "✓ Checkpoint: Configuração SSL processada (status: $SSL_STATUS)"
+
 # Configurar renovação automática SSL
-log "🔐 Configurando renovação automática SSL..."
-systemctl enable certbot.timer
-systemctl start certbot.timer
-success "Renovação automática SSL configurada"
+if [ "$SSL_STATUS" = "installed" ] || [ "$SSL_STATUS" = "existing" ]; then
+    log "🔐 Configurando renovação automática SSL..."
+    systemctl enable certbot.timer >> "$INSTALL_LOG" 2>&1
+    systemctl start certbot.timer >> "$INSTALL_LOG" 2>&1
+    success "Renovação automática SSL configurada"
+fi
 
 # Configurar Firewall (UFW)
 log "🛡️  Configurando firewall..."
@@ -565,6 +602,51 @@ PWA
 chmod +x "${APP_DIR}/check_pwa.sh"
 success "Script de verificação PWA criado"
 
+# Verificar saúde do sistema antes de finalizar
+log "🏥 Verificando saúde do sistema..."
+
+# Verificar Nginx
+if systemctl is-active --quiet nginx; then
+    if nginx -t &>/dev/null; then
+        success "Nginx: rodando com configuração válida"
+        NGINX_STATUS="ok"
+    else
+        warning "Nginx: rodando mas configuração tem erros (execute: nginx -t)"
+        NGINX_STATUS="config_error"
+    fi
+else
+    warning "Nginx: não está rodando! (execute: systemctl status nginx)"
+    NGINX_STATUS="stopped"
+fi
+
+# Verificar SSL e definir protocolo
+if [ -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
+    if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
+        success "SSL: certificado instalado e válido"
+        PROTOCOL="https"
+        SSL_INFO="✅ Certificado válido em /etc/letsencrypt/live/${DOMAIN}"
+    else
+        warning "SSL: diretório existe mas certificado incompleto"
+        PROTOCOL="http"
+        SSL_INFO="⚠️  SSL parcialmente configurado - use HTTP por enquanto"
+    fi
+else
+    warning "SSL: não configurado (site acessível apenas via HTTP)"
+    PROTOCOL="http"
+    SSL_INFO="⚠️  Certbot não executou - configure manualmente: sudo certbot --nginx -d ${DOMAIN}"
+fi
+
+# Verificar build
+if [ -f "${APP_DIR}/dist/index.html" ]; then
+    success "Build: dist/ presente e válido"
+    BUILD_STATUS="ok"
+else
+    warning "Build: dist/index.html não encontrado"
+    BUILD_STATUS="missing"
+fi
+
+log "✓ Checkpoint: Verificações de saúde concluídas"
+
 # Finalizar instalação
 log "📝 Gerando relatório de instalação..."
 
@@ -580,12 +662,17 @@ Node.js: $(node --version)
 Nginx: $(nginx -v 2>&1 | cut -d'/' -f2)
 Domínio: ${DOMAIN}
 Diretório: ${APP_DIR}
-SSL: /etc/letsencrypt/live/${DOMAIN}
+Protocolo: ${PROTOCOL}
+
+Status dos Componentes:
+• Nginx: ${NGINX_STATUS}
+• SSL: ${SSL_STATUS:-not_checked}
+• Build: ${BUILD_STATUS}
 
 Serviços Ativos:
 $(systemctl is-active nginx) - Nginx
 $(systemctl is-active fail2ban) - Fail2Ban
-$(systemctl is-active certbot.timer) - Certbot Timer
+$(systemctl is-active certbot.timer 2>/dev/null || echo "inactive") - Certbot Timer
 $(systemctl is-active unattended-upgrades) - Auto Updates
 
 Signed by Mr_Pink — Nosso Papo (nossopapo.net)
@@ -602,9 +689,10 @@ cat << "EOF"
 EOF
 echo -e "${NC}"
 
-echo -e "${CYAN}🌐 Acesse:${NC}        https://${DOMAIN}"
+echo -e "${CYAN}🌐 Acesse:${NC}        ${PROTOCOL}://${DOMAIN}"
+echo -e "${CYAN}             ${NC}        ${PROTOCOL}://www.${DOMAIN}"
 echo -e "${CYAN}📂 Diretório:${NC}     ${APP_DIR}"
-echo -e "${CYAN}🔐 SSL válido:${NC}    /etc/letsencrypt/live/${DOMAIN}"
+echo -e "${CYAN}🔐 SSL:${NC}           ${SSL_INFO}"
 echo -e "${CYAN}📝 Logs:${NC}          ${LOG_DIR}"
 echo -e "${CYAN}🧠 Assinado por:${NC}  Mr_Pink"
 echo ""
@@ -617,13 +705,21 @@ echo -e "  • Ver logs:           tail -f ${LOG_DIR}/install_*.log"
 echo -e "  • Verificar PWA:      ${APP_DIR}/check_pwa.sh"
 echo -e "  • Backup manual:      ${APP_DIR}/backup.sh"
 echo -e "  • Status Nginx:       systemctl status nginx"
-echo -e "  • Renovar SSL:        certbot renew --dry-run"
+echo -e "  • Testar Nginx:       nginx -t"
+if [ "$PROTOCOL" = "https" ]; then
+    echo -e "  • Renovar SSL:        certbot renew --dry-run"
+else
+    echo -e "  • Configurar SSL:     sudo certbot --nginx -d ${DOMAIN}"
+fi
 echo ""
 echo -e "${YELLOW}💡 Próximos passos:${NC}"
 echo -e "  1. Faça logout e login novamente para ver o novo MOTD"
-echo -e "  2. Teste o acesso: https://${DOMAIN}"
+echo -e "  2. Teste o acesso: ${PROTOCOL}://${DOMAIN}"
 echo -e "  3. Execute: ${APP_DIR}/check_pwa.sh"
 echo -e "  4. Configure as variáveis de ambiente em ${APP_DIR}/.env"
+if [ "$PROTOCOL" = "http" ]; then
+    echo -e "  ${YELLOW}5. Configure SSL manualmente: sudo certbot --nginx -d ${DOMAIN}${NC}"
+fi
 echo ""
 echo -e "${GREEN}────────────────────────────────────────────────────────────────${NC}"
 echo -e "${CYAN}\"Conexões reais. Conversas que ficam.\"${NC}"
