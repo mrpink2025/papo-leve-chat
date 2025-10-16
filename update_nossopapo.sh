@@ -34,12 +34,18 @@ DOMAIN="nossopapo.net"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 LOG_FILE="${LOG_DIR}/update_${TIMESTAMP}.log"
 BACKUP_FILE="${BACKUP_DIR}/backup_${TIMESTAMP}.tar.gz"
+LOCK_FILE="/var/lock/nossopapo_update.lock"
 
 # Flags
 FORCE_UPDATE=false
 SKIP_BACKUP=false
 DRY_RUN=false
 VERBOSE=false
+ALLOW_ROLLBACK=false
+
+# Webhook URL para notificações (opcional)
+# Descomente e configure para receber notificações no Discord/Slack
+# WEBHOOK_URL="https://discord.com/api/webhooks/..."
 
 # Função de logging
 log() {
@@ -87,6 +93,21 @@ info() {
 
 step() {
     log "STEP" "$@"
+}
+
+# Executar comando de forma segura com possibilidade de rollback
+safe_execute() {
+    local description=$1
+    shift
+    local command="$@"
+    
+    if ! eval "$command"; then
+        error "Falha: $description"
+        if [[ "$ALLOW_ROLLBACK" == true ]]; then
+            rollback
+        fi
+        exit 1
+    fi
 }
 
 # Banner
@@ -202,7 +223,7 @@ fix_git_ownership() {
     # Verificar se há erro de propriedade
     if ! git status &>/dev/null; then
         warning "Configurando repositório Git como diretório seguro..."
-        git config --global --add safe.directory "$APP_DIR"
+        git config --local safe.directory "$APP_DIR"
         success "Repositório Git configurado"
     else
         success "Repositório Git OK"
@@ -214,6 +235,41 @@ setup_directories() {
     mkdir -p "${BACKUP_DIR}"
     mkdir -p "${LOG_DIR}"
     success "Diretórios de backup e logs configurados"
+}
+
+# Verificar lock de execução
+check_lock() {
+    if [[ -f "$LOCK_FILE" ]]; then
+        local pid=$(cat "$LOCK_FILE")
+        if ps -p "$pid" > /dev/null 2>&1; then
+            error "Atualização já está rodando (PID: $pid)"
+        else
+            warning "Lock file obsoleto removido"
+            rm -f "$LOCK_FILE"
+        fi
+    fi
+    
+    echo $$ > "$LOCK_FILE"
+    success "Lock de execução criado"
+}
+
+# Remover lock ao sair
+cleanup_lock() {
+    rm -f "$LOCK_FILE"
+}
+
+# Verificar espaço em disco
+check_disk_space() {
+    step "Verificando espaço em disco..."
+    
+    local available=$(df -BG "$APP_DIR" | tail -1 | awk '{print $4}' | sed 's/G//')
+    local required=2  # GB necessários
+    
+    if [[ $available -lt $required ]]; then
+        error "Espaço insuficiente: ${available}GB disponível, ${required}GB necessário"
+    fi
+    
+    success "Espaço em disco: ${available}GB disponível"
 }
 
 # Obter versão atual
@@ -271,7 +327,7 @@ check_updates() {
     # Garantir que o repositório Git está configurado corretamente
     if ! git status &>/dev/null; then
         warning "Corrigindo configuração do Git..."
-        git config --global --add safe.directory "$APP_DIR"
+        git config --local safe.directory "$APP_DIR"
     fi
     
     git fetch origin 2>&1 | tee -a "${LOG_FILE}"
@@ -379,12 +435,23 @@ validate_build() {
         return 0
     fi
     
-    if [[ ! -f "${APP_DIR}/dist/index.html" ]]; then
-        error "Build inválido: dist/index.html não encontrado"
-    fi
+    # Verificar arquivos essenciais
+    local required_files=(
+        "${APP_DIR}/dist/index.html"
+        "${APP_DIR}/dist/manifest.json"
+        "${APP_DIR}/dist/assets"
+    )
     
-    if [[ ! -f "${APP_DIR}/dist/manifest.json" ]]; then
-        warning "manifest.json não encontrado no build"
+    for file in "${required_files[@]}"; do
+        if [[ ! -e "$file" ]]; then
+            error "Build inválido: ${file##*/} não encontrado"
+        fi
+    done
+    
+    # Verificar tamanho mínimo do build (100KB)
+    local size_kb=$(du -sk "${APP_DIR}/dist" | cut -f1)
+    if [[ $size_kb -lt 100 ]]; then
+        error "Build muito pequeno (${size_kb}KB). Possível falha no build."
     fi
     
     local size=$(du -sh "${APP_DIR}/dist" | cut -f1)
@@ -432,22 +499,44 @@ health_check() {
         return 0
     fi
     
-    sleep 2  # Aguardar Nginx processar
+    sleep 3  # Aguardar Nginx processar
     
-    local response=$(curl -s -o /dev/null -w "%{http_code}" "https://${DOMAIN}" --max-time 10)
+    # Health check com retry e follow redirects
+    local max_attempts=3
+    local attempt=1
+    local response=""
     
-    if [[ "$response" == "200" ]]; then
-        success "Health check: OK (HTTP ${response})"
-    else
-        error "Health check falhou (HTTP ${response})"
+    while [[ $attempt -le $max_attempts ]]; do
+        response=$(curl -s -L -o /dev/null -w "%{http_code}" "https://${DOMAIN}" --max-time 10)
+        
+        if [[ "$response" == "200" ]]; then
+            success "Health check: OK (HTTP ${response})"
+            break
+        else
+            warning "Tentativa ${attempt}/${max_attempts}: HTTP ${response}"
+            sleep 2
+            ((attempt++))
+        fi
+    done
+    
+    if [[ "$response" != "200" ]]; then
+        error "Health check falhou após ${max_attempts} tentativas (HTTP ${response})"
     fi
     
-    # Verificar PWA
-    local manifest_response=$(curl -s -o /dev/null -w "%{http_code}" "https://${DOMAIN}/manifest.json" --max-time 5)
+    # Verificar PWA manifest
+    local manifest_response=$(curl -s -L -o /dev/null -w "%{http_code}" "https://${DOMAIN}/manifest.json" --max-time 5)
     if [[ "$manifest_response" == "200" ]]; then
         success "PWA manifest: OK"
     else
         warning "PWA manifest não acessível (HTTP ${manifest_response})"
+    fi
+    
+    # Verificar Service Worker
+    local sw_response=$(curl -s -L -o /dev/null -w "%{http_code}" "https://${DOMAIN}/sw.js" --max-time 5)
+    if [[ "$sw_response" == "200" ]]; then
+        success "Service Worker: OK"
+    else
+        warning "Service Worker não acessível (HTTP ${sw_response})"
     fi
 }
 
@@ -480,17 +569,32 @@ rollback() {
         error "Arquivo de backup não encontrado: ${BACKUP_FILE}"
         warning "Verifique backups anteriores em: ${BACKUP_DIR}"
         ls -lth "${BACKUP_DIR}" 2>/dev/null || true
+        send_notification "failure" "❌ Rollback falhou: backup não encontrado"
         exit 1
     fi
     
     cd "$APP_DIR"
     
+    # Limpar dist/ antes de restaurar
+    info "Limpando diretório dist/ antes de restaurar..."
+    rm -rf dist/
+    
     # Restaurar backup
-    tar -xzf "${BACKUP_FILE}" 2>&1 | tee -a "${LOG_FILE}"
+    if tar -xzf "${BACKUP_FILE}" 2>&1 | tee -a "${LOG_FILE}"; then
+        success "Backup restaurado"
+    else
+        error "Falha ao restaurar backup"
+    fi
     
-    # Recarregar Nginx
-    systemctl reload nginx
+    # Testar Nginx antes de recarregar
+    if nginx -t 2>&1 | tee -a "${LOG_FILE}"; then
+        systemctl reload nginx
+        success "Nginx recarregado após rollback"
+    else
+        error "Configuração do Nginx inválida após rollback"
+    fi
     
+    send_notification "failure" "❌ Atualização falhou. Rollback executado para versão ${OLD_VERSION}"
     error "Rollback concluído. Sistema restaurado para versão anterior."
 }
 
@@ -519,8 +623,37 @@ generate_report() {
     echo ""
 }
 
-# Trap para capturar erros
-trap 'rollback' ERR
+# Enviar notificação via webhook (opcional)
+send_notification() {
+    local status=$1  # "success" ou "failure"
+    local message=$2
+    
+    # Verificar se webhook está configurado
+    if [[ -z "${WEBHOOK_URL:-}" ]]; then
+        return 0
+    fi
+    
+    local color="3066993"  # Verde
+    [[ "$status" == "failure" ]] && color="15158332"  # Vermelho
+    
+    curl -X POST "${WEBHOOK_URL}" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"embeds\": [{
+                \"title\": \"Nosso Papo - Atualização\",
+                \"description\": \"${message}\",
+                \"color\": ${color},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                \"footer\": {
+                    \"text\": \"${DOMAIN}\"
+                }
+            }]
+        }" \
+        --max-time 5 2>/dev/null || true
+}
+
+# Trap para cleanup (não para rollback automático)
+trap cleanup_lock EXIT
 
 ################################################################################
 # EXECUÇÃO PRINCIPAL
@@ -530,10 +663,12 @@ START_TIME=$(date +%s)
 
 show_banner
 
-# Validações iniciais
+# Validações iniciais (SEM rollback)
 check_root
 check_os
 check_directory
+check_lock
+check_disk_space
 setup_directories
 
 # Corrigir Git antes de qualquer operação
@@ -543,19 +678,29 @@ fix_git_ownership
 OLD_VERSION=$(get_current_version)
 info "Versão atual: ${OLD_VERSION}"
 
-# Processo de atualização
+# Criar backup (sem rollback - não há backup para restaurar ainda)
 create_backup
 check_updates
-update_code
-install_dependencies
-build_project
-validate_build
-test_nginx
-reload_nginx
-health_check
+
+# ✅ CHECKPOINT: A partir daqui, rollback está habilitado
+ALLOW_ROLLBACK=true
+
+# Processo de atualização (COM rollback em caso de falha)
+safe_execute "Atualizar código" update_code
+safe_execute "Instalar dependências" install_dependencies
+safe_execute "Build do projeto" build_project
+safe_execute "Validar build" validate_build
+safe_execute "Testar Nginx" test_nginx
+safe_execute "Recarregar Nginx" reload_nginx
+safe_execute "Health check" health_check
+
+# Limpeza (não crítico)
 cleanup_backups
 
 # Relatório final
 generate_report
+
+# Notificar sucesso
+send_notification "success" "✅ Atualização concluída: ${OLD_VERSION} → $(get_current_version)"
 
 exit 0
