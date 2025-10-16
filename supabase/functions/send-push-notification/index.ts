@@ -158,31 +158,34 @@ serve(async (req) => {
             .update({ last_used_at: new Date().toISOString() })
             .eq("id", subscription.id);
 
-          // Enviar push usando web-push
-          // NOTA: Para produção, você precisará usar a biblioteca web-push
-          // ou implementar o protocolo VAPID manualmente
-          console.log(`Sending push to ${subscription.device_name || "Unknown device"}`);
-          console.log(`Endpoint: ${subscription.endpoint.substring(0, 50)}...`);
-          console.log(`Badge count: ${unreadCount || 0}`);
+          // Enviar push notification real via Web Push API
+          console.log(`[Push] Sending to ${subscription.device_name || "Unknown device"}`);
+          console.log(`[Push] Endpoint: ${subscription.endpoint.substring(0, 50)}...`);
+          console.log(`[Push] Badge count: ${unreadCount || 0}`);
+          
+          // Enviar notificação usando Web Push API nativa
+          const pushResponse = await fetch(subscription.endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'TTL': '86400', // 24 horas
+            },
+            body: notificationPayload,
+          });
 
-          // TODO: Implementar envio real com web-push
-          // await webpush.sendNotification(
-          //   {
-          //     endpoint: subscription.endpoint,
-          //     keys: {
-          //       p256dh: subscription.p256dh,
-          //       auth: subscription.auth,
-          //     },
-          //   },
-          //   notificationPayload,
-          //   {
-          //     vapidDetails: {
-          //       subject: 'mailto:your-email@example.com',
-          //       publicKey: VAPID_PUBLIC_KEY,
-          //       privateKey: VAPID_PRIVATE_KEY,
-          //     },
-          //   }
-          // );
+          if (!pushResponse.ok) {
+            const errorText = await pushResponse.text();
+            console.error(`[Push] Failed: ${pushResponse.status} - ${errorText}`);
+            
+            // Se 404 ou 410, subscription é inválida
+            if (pushResponse.status === 404 || pushResponse.status === 410) {
+              throw new Error(`410 - Subscription expired`);
+            }
+            
+            throw new Error(`Push failed: ${pushResponse.status}`);
+          }
+          
+          console.log(`[Push] Successfully sent to ${subscription.device_name}`);
 
           // Registrar na história de notificações
           await supabase.from("notification_history").insert({

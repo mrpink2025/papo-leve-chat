@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
-import { useNotifications } from "./useNotifications";
+import { useNotificationManager } from "./useNotificationManager";
+import { useConversationNotifications } from "./useConversationNotifications";
 
 export interface Message {
   id: string;
@@ -25,7 +26,8 @@ const MESSAGES_PER_PAGE = 50;
 
 export const useMessages = (conversationId: string | undefined, userId: string | undefined) => {
   const queryClient = useQueryClient();
-  const { sendNotification } = useNotifications();
+  const { notifyNewMessage } = useNotificationManager();
+  const { isMuted } = useConversationNotifications(conversationId || '');
   const [page, setPage] = useState(0);
 
   const query = useQuery({
@@ -101,14 +103,22 @@ export const useMessages = (conversationId: string | undefined, userId: string |
             (old: Message[] = []) => [...old, messageWithSender]
           );
 
-          // Send notification if message is from another user
-          if (newMessage.sender_id !== userId && document.hidden) {
+          // Send push notification if message is from another user
+          if (newMessage.sender_id !== userId && !isMuted) {
             const senderName = profile?.full_name || profile?.username || "Alguém";
-            sendNotification(
+            const isMention = newMessage.content?.includes(`@${userId}`);
+            
+            notifyNewMessage(
+              conversationId,
+              newMessage.sender_id,
               senderName,
               newMessage.content,
-              profile?.avatar_url
-            );
+              newMessage.id,
+              profile?.avatar_url,
+              isMention
+            ).catch(error => {
+              console.error('[useMessages] Failed to send push notification:', error);
+            });
           }
 
           // Mark message as delivered
@@ -166,7 +176,7 @@ export const useMessages = (conversationId: string | undefined, userId: string |
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, queryClient, userId, sendNotification]);
+  }, [conversationId, queryClient, userId, notifyNewMessage, isMuted]);
 
   const sendMessage = useMutation({
     mutationFn: async ({
