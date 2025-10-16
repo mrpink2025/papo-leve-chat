@@ -153,7 +153,7 @@ const MessageBubble = ({
                   <p className="text-sm break-words leading-relaxed">{content}</p>
                 )}
               </div>
-            ) : type === "voice" && metadata?.url ? (
+            ) : type === "audio" && metadata?.url ? (
               <audio controls src={metadata.url} className="max-w-full" />
             ) : type === "video" && metadata?.url ? (
               <video controls src={metadata.url} className="max-w-xs max-h-96 rounded-lg object-contain" />
