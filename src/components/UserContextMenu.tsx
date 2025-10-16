@@ -1,11 +1,11 @@
 // Signed by Mr_Pink — Nosso Papo (nossopapo.net)
 
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { User, MessageSquare, Phone, Video } from "lucide-react";
 
 interface UserContextMenuProps {
@@ -35,38 +35,38 @@ export const UserContextMenu = ({
   }
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
         <div className="cursor-pointer hover:opacity-80 transition-opacity">
           {children}
         </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="w-56">
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-56">
         {onOpenProfile && (
-          <ContextMenuItem onClick={onOpenProfile}>
+          <DropdownMenuItem onClick={onOpenProfile}>
             <User className="mr-2 h-4 w-4" />
             Ver Perfil
-          </ContextMenuItem>
+          </DropdownMenuItem>
         )}
         {onSendMessage && (
-          <ContextMenuItem onClick={onSendMessage}>
+          <DropdownMenuItem onClick={onSendMessage}>
             <MessageSquare className="mr-2 h-4 w-4" />
             Mensagem Privada
-          </ContextMenuItem>
+          </DropdownMenuItem>
         )}
         {onAudioCall && (
-          <ContextMenuItem onClick={onAudioCall}>
+          <DropdownMenuItem onClick={onAudioCall}>
             <Phone className="mr-2 h-4 w-4" />
             Chamada de Áudio
-          </ContextMenuItem>
+          </DropdownMenuItem>
         )}
         {onVideoCall && (
-          <ContextMenuItem onClick={onVideoCall}>
+          <DropdownMenuItem onClick={onVideoCall}>
             <Video className="mr-2 h-4 w-4" />
             Chamada de Vídeo
-          </ContextMenuItem>
+          </DropdownMenuItem>
         )}
-      </ContextMenuContent>
-    </ContextMenu>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
