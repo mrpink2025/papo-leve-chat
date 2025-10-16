@@ -60,13 +60,6 @@ const PWAProvider = ({ children }: { children: React.ReactNode }) => {
   } = useRegisterSW({
     onRegistered(r) {
       console.log("[PWA] Service Worker Registered:", r);
-      
-      // Registrar Service Worker de push notifications separadamente
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-        navigator.serviceWorker.register('/sw-push.js', { scope: '/' })
-          .then(reg => console.log('[Push] Service Worker registered:', reg))
-          .catch(err => console.error('[Push] Service Worker registration failed:', err));
-      }
     },
     onRegisterError(error) {
       console.error("[PWA] SW registration error:", error);
