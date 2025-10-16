@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import GroupSettingsDialog from "./GroupSettingsDialog";
 import ProfileViewDialog from "./ProfileViewDialog";
+import { ConversationNotificationMenu } from "./ConversationNotificationMenu";
 
 interface ChatHeaderProps {
   name: string;
@@ -98,6 +99,9 @@ const ChatHeader = ({
         </div>
       </div>
       <div className="flex items-center gap-1">
+        {conversationId && (
+          <ConversationNotificationMenu conversationId={conversationId} />
+        )}
         <Button
           variant="ghost"
           size="icon"
