@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Settings, Archive, LogOut } from "lucide-react";
+import { Search, Settings, Archive, LogOut, Download } from "lucide-react";
 import ChatListItem from "@/components/ChatListItem";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { StoriesList } from "@/components/StoriesList";
@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversations";
+import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -24,6 +25,18 @@ const Index = () => {
   const { user, signOut } = useAuth();
   const { data: conversations = [], isLoading } = useConversations(user?.id, false);
   const { data: archivedConversations = [] } = useConversations(user?.id, true);
+  const { canInstall, promptInstall, isIOS } = useInstallPrompt();
+
+  const handleInstall = async () => {
+    if (isIOS) {
+      navigate("/install");
+    } else {
+      const installed = await promptInstall();
+      if (!installed) {
+        navigate("/install");
+      }
+    }
+  };
 
   const filteredChats = (activeTab === "archived" ? archivedConversations : conversations)
     .filter((conversation: any) => {
@@ -59,6 +72,16 @@ const Index = () => {
           <h1 className="text-2xl font-bold text-primary tracking-tight">Nosso Papo</h1>
         </div>
         <div className="flex gap-2">
+          {canInstall && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleInstall}
+              title="Instalar App"
+            >
+              <Download className="h-5 w-5" />
+            </Button>
+          )}
           <ThemeToggle />
           <CreateGroupDialog />
           <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} title="Configurações">
