@@ -5,7 +5,7 @@ import { toast } from '@/hooks/use-toast';
 import { useNotificationPreferences } from './useNotificationPreferences';
 
 // VAPID Public Key - você precisará gerar um par de chaves VAPID
-const VAPID_PUBLIC_KEY = 'PLACEHOLDER_VAPID_PUBLIC_KEY';
+const VAPID_PUBLIC_KEY = 'BMxaLbuk3GN8ryRsVVG93gMINafVosG4tj9GJgXDaxIRs02SL3TbDUwDQkc3pwbBdap6Ccz1uX_W6A_zcBflXqo';
 
 interface PushSubscriptionData {
   endpoint: string;
@@ -110,17 +110,6 @@ export const usePushNotifications = () => {
 
       // Inscrever para push notifications
       const registration = await navigator.serviceWorker.ready;
-      
-      // Verificar se VAPID key está configurada
-      if (VAPID_PUBLIC_KEY === 'PLACEHOLDER_VAPID_PUBLIC_KEY') {
-        console.warn('VAPID key não configurada. Usando modo de teste.');
-        
-        toast({
-          title: 'Configuração necessária',
-          description: 'As chaves VAPID precisam ser configuradas no servidor.',
-        });
-        return false;
-      }
 
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
