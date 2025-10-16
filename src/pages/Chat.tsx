@@ -366,6 +366,15 @@ const Chat = () => {
             ? messages.find((m: any) => m.id === message.reply_to)?.content
             : undefined;
 
+          // Detectar se deve mostrar info do remetente (primeira mensagem do autor ou após separador de data)
+          const prevMessage = index > 0 ? messages[index - 1] : null;
+          const showSenderInfo = 
+            conversation.type === "group" &&
+            message.sender_id !== user?.id &&
+            (!prevMessage || 
+             prevMessage.sender_id !== message.sender_id ||
+             showDateSeparator);
+
           return (
             <div key={message.id} id={message.id}>
               {showDateSeparator && (
@@ -393,6 +402,11 @@ const Chat = () => {
                     removeFromQueue(msgId);
                   }
                 }}
+                isGroup={conversation.type === "group"}
+                showSenderInfo={showSenderInfo}
+                senderName={message.sender?.full_name || message.sender?.username}
+                senderAvatar={message.sender?.avatar_url}
+                senderId={message.sender_id}
               />
             </div>
           );
