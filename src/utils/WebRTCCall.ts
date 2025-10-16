@@ -27,6 +27,7 @@ export class WebRTCCall {
   private conversationId: string;
   private callType: CallType;
   private isInitiator: boolean;
+  private pendingIceCandidates: RTCIceCandidateInit[] = [];
   
   // Callbacks
   public onStatusChange?: (status: CallStatus) => void;
@@ -263,6 +264,9 @@ export class WebRTCCall {
       new RTCSessionDescription({ type: 'offer', sdp: signal.sdp })
     );
 
+    // Processar ICE candidates pendentes
+    await this.processPendingIceCandidates();
+
     const answer = await this.peerConnection.createAnswer();
     await this.peerConnection.setLocalDescription(answer);
 
@@ -284,6 +288,9 @@ export class WebRTCCall {
       new RTCSessionDescription({ type: 'answer', sdp: signal.sdp })
     );
 
+    // Processar ICE candidates pendentes
+    await this.processPendingIceCandidates();
+
     console.log('[WebRTC] Resposta recebida e processada');
   }
 
@@ -292,12 +299,36 @@ export class WebRTCCall {
     if (!this.peerConnection) return;
 
     try {
+      // Se não há remote description ainda, adicionar à fila
+      if (!this.peerConnection.remoteDescription) {
+        console.log('[WebRTC] Remote description não definida, adicionando ICE candidate à fila');
+        this.pendingIceCandidates.push(signal.candidate);
+        return;
+      }
+
       await this.peerConnection.addIceCandidate(
         new RTCIceCandidate(signal.candidate)
       );
     } catch (error) {
       console.error('[WebRTC] Erro ao adicionar ICE candidate:', error);
     }
+  }
+
+  // Processar candidatos ICE pendentes
+  private async processPendingIceCandidates(): Promise<void> {
+    if (!this.peerConnection || this.pendingIceCandidates.length === 0) return;
+
+    console.log(`[WebRTC] Processando ${this.pendingIceCandidates.length} ICE candidates pendentes`);
+
+    for (const candidate of this.pendingIceCandidates) {
+      try {
+        await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (error) {
+        console.error('[WebRTC] Erro ao adicionar ICE candidate pendente:', error);
+      }
+    }
+
+    this.pendingIceCandidates = [];
   }
 
   // Enviar sinal via Supabase Realtime

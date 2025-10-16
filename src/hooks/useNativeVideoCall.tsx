@@ -145,7 +145,8 @@ export const useNativeVideoCall = () => {
         conversation_id: conversationId,
         sender_id: user.id,
         content: callType === 'video' ? '📹 Chamada de vídeo iniciada' : '📞 Chamada de áudio iniciada',
-        type: 'system',
+        type: 'text',
+        metadata: { isSystemMessage: true },
       });
 
     } catch (error: any) {

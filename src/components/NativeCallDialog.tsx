@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -120,6 +122,17 @@ export const NativeCallDialog = ({
   return (
     <Dialog open={callState.isInCall} onOpenChange={onEndCall}>
       <DialogContent className="max-w-full h-full p-0 bg-black border-none">
+        {/* Acessibilidade */}
+        <DialogTitle className="sr-only">
+          Chamada {callState.callType === 'video' ? 'de vídeo' : 'de áudio'} com {callState.remoteUserInfo?.name}
+        </DialogTitle>
+        <DialogDescription className="sr-only">
+          {callState.status === 'connected' 
+            ? `Chamada conectada - Duração: ${formatDuration(callState.duration)}`
+            : `Status da chamada: ${callState.status}`
+          }
+        </DialogDescription>
+
         <div className="relative w-full h-full flex flex-col">
           {/* Vídeo remoto (tela principal) */}
           <div className="relative flex-1 bg-gradient-to-b from-gray-900 to-black">
