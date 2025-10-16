@@ -1,10 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const useMessageStatus = (
   conversationId: string | undefined,
   userId: string | undefined
 ) => {
+  const queryClient = useQueryClient();
+  const [messageStatuses, setMessageStatuses] = useState<Record<string, string>>({});
   // Mark messages as delivered when viewing conversation
   useEffect(() => {
     if (!conversationId || !userId) return;
@@ -52,5 +55,52 @@ export const useMessageStatus = (
       .eq("user_id", userId);
   };
 
-  return { markAsRead };
+  // Fetch message statuses
+  useEffect(() => {
+    if (!conversationId || !userId) return;
+
+    const fetchStatuses = async () => {
+      const { data } = await supabase
+        .from("message_status")
+        .select("message_id, status")
+        .eq("user_id", userId);
+
+      if (data) {
+        const statusMap: Record<string, string> = {};
+        data.forEach((s) => {
+          statusMap[s.message_id] = s.status;
+        });
+        setMessageStatuses(statusMap);
+      }
+    };
+
+    fetchStatuses();
+
+    // Subscribe to status changes
+    const channel = supabase
+      .channel(`message_status:${conversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "message_status",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          fetchStatuses();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conversationId, userId]);
+
+  const getMessageStatus = (messageId: string): "sending" | "sent" | "read" | "error" => {
+    return (messageStatuses[messageId] as any) || "sent";
+  };
+
+  return { markAsRead, getMessageStatus };
 };

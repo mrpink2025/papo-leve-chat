@@ -16,7 +16,7 @@ interface MessageBubbleProps {
   edited?: boolean;
   replyTo?: string;
   replyContent?: string;
-  status?: "sending" | "sent" | "error";
+  status?: "sending" | "sent" | "read" | "error";
   onEdit?: (messageId: string, newContent: string) => void;
   onDelete?: (messageId: string) => void;
   onReply?: (messageId: string, content: string) => void;

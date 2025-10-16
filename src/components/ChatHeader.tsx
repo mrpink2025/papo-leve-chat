@@ -1,19 +1,35 @@
+import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Phone, Video, MoreVertical } from "lucide-react";
+import { ArrowLeft, Phone, Video, Search, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import GroupSettingsDialog from "./GroupSettingsDialog";
 
 interface ChatHeaderProps {
   name: string;
   avatar?: string;
   online?: boolean;
   lastSeen?: string;
+  isGroup?: boolean;
+  conversationId?: string;
   onVideoCall?: () => void;
   onAudioCall?: () => void;
+  onSearch?: () => void;
 }
 
-const ChatHeader = ({ name, avatar, online = false, lastSeen, onVideoCall, onAudioCall }: ChatHeaderProps) => {
+const ChatHeader = ({ 
+  name, 
+  avatar, 
+  online = false, 
+  lastSeen, 
+  isGroup = false,
+  conversationId,
+  onVideoCall, 
+  onAudioCall,
+  onSearch 
+}: ChatHeaderProps) => {
   const navigate = useNavigate();
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
 
   return (
     <header className="bg-chat-header text-chat-header-foreground px-4 py-3 flex items-center justify-between shadow-chat border-b border-border/50">
@@ -43,6 +59,14 @@ const ChatHeader = ({ name, avatar, online = false, lastSeen, onVideoCall, onAud
         <Button
           variant="ghost"
           size="icon"
+          onClick={onSearch}
+          className="text-chat-header-foreground hover:bg-secondary/50"
+        >
+          <Search size={20} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onVideoCall}
           className="text-chat-header-foreground hover:bg-secondary/50"
         >
@@ -56,14 +80,25 @@ const ChatHeader = ({ name, avatar, online = false, lastSeen, onVideoCall, onAud
         >
           <Phone size={20} />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-chat-header-foreground hover:bg-secondary/50"
-        >
-          <MoreVertical size={20} />
-        </Button>
+        {isGroup && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowGroupSettings(true)}
+            className="text-chat-header-foreground hover:bg-secondary/50"
+          >
+            <Settings size={20} />
+          </Button>
+        )}
       </div>
+
+      {isGroup && conversationId && (
+        <GroupSettingsDialog
+          open={showGroupSettings}
+          onClose={() => setShowGroupSettings(false)}
+          conversationId={conversationId}
+        />
+      )}
     </header>
   );
 };

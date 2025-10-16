@@ -1,9 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import ChatHeader from "@/components/ChatHeader";
 import MessageBubble from "@/components/MessageBubble";
 import MessageInput from "@/components/MessageInput";
 import TypingIndicator from "@/components/TypingIndicator";
+import DateSeparator from "@/components/DateSeparator";
+import SearchMessages from "@/components/SearchMessages";
 import { VideoCallDialog } from "@/components/VideoCallDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessages } from "@/hooks/useMessages";
@@ -11,8 +13,12 @@ import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { useMessageActions } from "@/hooks/useMessageActions";
 import { useVideoCall } from "@/hooks/useVideoCall";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import { useMessageStatus } from "@/hooks/useMessageStatus";
+import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { isSameDay } from "date-fns";
 
 interface ConversationData {
   id: string;
@@ -33,6 +39,8 @@ const Chat = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [replyToMessage, setReplyToMessage] = useState<{ id: string; content: string } | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
 
   const { data: conversation } = useQuery<ConversationData>({
     queryKey: ["conversation", id],
@@ -82,11 +90,13 @@ const Chat = () => {
     enabled: !!id && !!user,
   });
 
-  const { messages, sendMessage } = useMessages(id, user?.id);
+  const { messages, sendMessage, hasNextPage, loadMore } = useMessages(id, user?.id);
   const { typingUsers, setTyping } = useTypingIndicator(id || "", user?.id || "");
   const { editMessage, deleteMessage } = useMessageActions(id || "");
   const { callState, startCall, endCall } = useVideoCall();
   const { trackEvent } = useAnalytics();
+  const { markAsRead, getMessageStatus } = useMessageStatus(id, user?.id);
+  const { isOnline: isNetworkOnline, addToQueue, removeFromQueue } = useOfflineQueue();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -95,6 +105,21 @@ const Chat = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Mark messages as read when conversation is visible
+  useEffect(() => {
+    if (!id || !user?.id || !messages.length) return;
+
+    const unreadMessages = messages.filter(
+      (msg: any) => msg.sender_id !== user.id
+    );
+
+    if (unreadMessages.length > 0 && document.visibilityState === "visible") {
+      unreadMessages.forEach((msg: any) => {
+        markAsRead(msg.id);
+      });
+    }
+  }, [messages, id, user?.id, markAsRead]);
 
   if (!conversation) {
     return (
@@ -110,10 +135,15 @@ const Chat = () => {
     metadata?: any
   ) => {
     try {
-      await sendMessage({ content, type, metadata });
+      const reply_to = replyToMessage?.id;
+      await sendMessage({ content, type, metadata, reply_to });
+      setReplyToMessage(null);
       trackEvent({ eventType: 'message_sent', eventData: { conversationId: id, type } });
     } catch (error) {
       console.error("Error sending message:", error);
+      if (!isNetworkOnline && id) {
+        addToQueue({ conversationId: id, content, type, metadata });
+      }
     }
   };
 
@@ -150,6 +180,8 @@ const Chat = () => {
         avatar={displayAvatar}
         online={isOnline}
         lastSeen={lastSeen}
+        isGroup={conversation.type === "group"}
+        conversationId={id}
         onVideoCall={() => {
           if (id) {
             startCall(id, true);
@@ -162,6 +194,7 @@ const Chat = () => {
             trackEvent({ eventType: 'audio_call_started', eventData: { conversationId: id } });
           }
         }}
+        onSearch={() => setShowSearch(!showSearch)}
       />
 
       <VideoCallDialog
@@ -171,22 +204,71 @@ const Chat = () => {
         displayName={user?.email?.split('@')[0] || "Usuário"}
       />
 
+      {showSearch && (
+        <SearchMessages
+          conversationId={id || ""}
+          onClose={() => setShowSearch(false)}
+          onMessageSelect={(messageId) => {
+            const element = document.getElementById(messageId);
+            element?.scrollIntoView({ behavior: "smooth", block: "center" });
+            setShowSearch(false);
+          }}
+        />
+      )}
+
       <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-chat-pattern">
-        {messages.map((message: any) => (
-          <MessageBubble
-            key={message.id}
-            id={message.id}
-            content={message.content}
-            timestamp={new Date(message.created_at)}
-            isSent={message.sender_id === user?.id}
-            isRead={false}
-            type={message.type}
-            metadata={message.metadata}
-            edited={message.edited}
-            onEdit={handleEditMessage}
-            onDelete={handleDeleteMessage}
-          />
-        ))}
+        {hasNextPage && (
+          <div className="flex justify-center py-2">
+            <Button variant="ghost" size="sm" onClick={loadMore}>
+              Carregar mensagens antigas
+            </Button>
+          </div>
+        )}
+        
+        {messages.map((message: any, index: number) => {
+          const showDateSeparator =
+            index === 0 ||
+            !isSameDay(
+              new Date(message.created_at),
+              new Date(messages[index - 1].created_at)
+            );
+
+          const status = getMessageStatus(message.id);
+          const replyContent = message.reply_to
+            ? messages.find((m: any) => m.id === message.reply_to)?.content
+            : undefined;
+
+          return (
+            <div key={message.id} id={message.id}>
+              {showDateSeparator && (
+                <DateSeparator date={new Date(message.created_at)} />
+              )}
+              <MessageBubble
+                id={message.id}
+                content={message.content}
+                timestamp={new Date(message.created_at)}
+                isSent={message.sender_id === user?.id}
+                isRead={status === "read"}
+                type={message.type}
+                metadata={message.metadata}
+                edited={message.edited}
+                replyTo={message.reply_to}
+                replyContent={replyContent}
+                status={status}
+                onEdit={handleEditMessage}
+                onDelete={handleDeleteMessage}
+                onReply={(msgId, content) => setReplyToMessage({ id: msgId, content })}
+                onRetry={async (msgId) => {
+                  const msg = messages.find((m: any) => m.id === msgId);
+                  if (msg) {
+                    await handleSendMessage(msg.content, msg.type, msg.metadata);
+                    removeFromQueue(msgId);
+                  }
+                }}
+              />
+            </div>
+          );
+        })}
         <div ref={messagesEndRef} />
         <TypingIndicator users={typingUsers} />
       </div>
@@ -195,6 +277,8 @@ const Chat = () => {
         onSendMessage={handleSendMessage}
         conversationId={id}
         onTyping={setTyping}
+        replyTo={replyToMessage}
+        onCancelReply={() => setReplyToMessage(null)}
       />
     </div>
   );
