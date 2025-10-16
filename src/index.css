@@ -64,61 +64,63 @@ All colors MUST be HSL.
 
   /* TEMA CLARO - Nosso Papo */
   [data-theme="light"] {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 7%;
+    /* Fundo branco quente */
+    --background: 0 0% 99%;
+    --foreground: 0 0% 10%;
 
-    --card: 0 0% 98%;
-    --card-foreground: 0 0% 7%;
+    /* Superfícies levemente acinzentadas */
+    --card: 240 7% 97%;
+    --card-foreground: 0 0% 10%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 7%;
+    --popover: 0 0% 99%;
+    --popover-foreground: 0 0% 10%;
 
-    /* Laranja primário #FF8A00 */
-    --primary: 33 100% 50%;
+    /* Laranja suave #FF9500 */
+    --primary: 35 100% 50%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 33 100% 60%;
+    --primary-glow: 35 100% 60%;
 
-    /* Amarelo secundário #FFC400 */
-    --secondary: 45 100% 50%;
-    --secondary-foreground: 0 0% 7%;
+    /* Amarelo suave #FFD74A */
+    --secondary: 48 100% 64%;
+    --secondary-foreground: 0 0% 10%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 33%;
+    --muted: 240 7% 97%;
+    --muted-foreground: 0 0% 36%;
 
-    --accent: 33 100% 50%;
+    --accent: 35 100% 50%;
     --accent-foreground: 0 0% 100%;
 
     /* Erro vermelho #E53935 */
     --destructive: 4 79% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Divisórias #EAEAEA */
-    --border: 0 0% 92%;
-    --input: 0 0% 96%;
-    --ring: 45 100% 50%;
+    /* Divisórias #E6E6E6 */
+    --border: 0 0% 90%;
+    --input: 240 7% 97%;
+    --ring: 35 100% 50%;
 
-    /* Header branco puro */
-    --chat-header: 0 0% 100%;
-    --chat-header-foreground: 33 100% 50%;
+    /* Header branco quente */
+    --chat-header: 0 0% 99%;
+    --chat-header-foreground: 35 100% 50%;
     
-    /* Mensagens enviadas: bolha branca com borda laranja */
-    --message-sent: 0 0% 100%;
-    --message-sent-foreground: 0 0% 7%;
-    --message-sent-border: 33 100% 88%;
+    /* Mensagens enviadas: #FFF5E6 com borda #FFE0B3 */
+    --message-sent: 36 100% 95%;
+    --message-sent-foreground: 0 0% 10%;
+    --message-sent-border: 38 100% 85%;
     
-    /* Mensagens recebidas: fundo branco neutro */
-    --message-received: 0 0% 98%;
-    --message-received-foreground: 0 0% 7%;
+    /* Mensagens recebidas: branco puro com borda sutil */
+    --message-received: 0 0% 100%;
+    --message-received-foreground: 0 0% 10%;
 
     /* Fundo das conversas */
-    --chat-background: 0 0% 98%;
+    --chat-background: 240 7% 97%;
 
-    --shadow-chat: 0 0 8px 0 hsl(0 0% 0% / 0.06);
+    --shadow-chat: 0 2px 6px 0 hsl(0 0% 0% / 0.05);
     --shadow-message: 0 1px 3px 0 hsl(0 0% 0% / 0.08);
 
     /* Estados adicionais */
-    --success: 152 69% 46%;
-    --warning: 38 92% 56%;
+    --success: 162 72% 42%;
+    --warning: 48 100% 64%;
     --error: 4 79% 56%;
     --info: 217 91% 60%;
   }
