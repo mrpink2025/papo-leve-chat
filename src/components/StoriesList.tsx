@@ -5,6 +5,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useState } from 'react';
 import { StoryViewer } from './StoryViewer';
 import { CreateStoryDialog } from './CreateStoryDialog';
+import { supabase } from '@/integrations/supabase/client';
+
+const getAvatarUrl = (avatarPath: string | null) => {
+  if (!avatarPath) return null;
+  if (avatarPath.startsWith('http')) return avatarPath;
+  const { data } = supabase.storage.from('avatars').getPublicUrl(avatarPath);
+  return data.publicUrl;
+};
 
 export const StoriesList = () => {
   const { stories, isLoading } = useStories();
@@ -61,7 +69,7 @@ export const StoriesList = () => {
         >
           <div className="relative">
             <Avatar className={`h-16 w-16 ${hasUserStories ? 'ring-2 ring-primary' : 'ring-2 ring-muted'}`}>
-              <AvatarImage src={user?.user_metadata?.avatar_url} />
+              <AvatarImage src={getAvatarUrl(user?.user_metadata?.avatar_url) || undefined} />
               <AvatarFallback>Você</AvatarFallback>
             </Avatar>
             {hasUserStories ? (
@@ -96,7 +104,7 @@ export const StoriesList = () => {
                 >
                   <div className="relative">
                     <Avatar className="h-16 w-16 ring-2 ring-primary">
-                      <AvatarImage src={profile?.avatar_url} />
+                      <AvatarImage src={getAvatarUrl(profile?.avatar_url) || undefined} />
                       <AvatarFallback>
                         {profile?.username?.substring(0, 2).toUpperCase()}
                       </AvatarFallback>
