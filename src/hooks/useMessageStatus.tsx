@@ -24,11 +24,14 @@ export const useMessageStatus = (
         for (const message of messages) {
           await supabase
             .from("message_status")
-            .upsert({
-              message_id: message.id,
-              user_id: userId,
-              status: "delivered",
-            });
+            .upsert(
+              {
+                message_id: message.id,
+                user_id: userId,
+                status: "delivered",
+              },
+              { onConflict: 'message_id,user_id' }
+            );
         }
       }
     };
@@ -41,11 +44,14 @@ export const useMessageStatus = (
 
     await supabase
       .from("message_status")
-      .upsert({
-        message_id: messageId,
-        user_id: userId,
-        status: "read",
-      });
+      .upsert(
+        {
+          message_id: messageId,
+          user_id: userId,
+          status: "read",
+        },
+        { onConflict: 'message_id,user_id' }
+      );
 
     // Update last_read_at for the conversation
     await supabase

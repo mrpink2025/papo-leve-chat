@@ -300,56 +300,31 @@ const Chat = () => {
         }
       }
       
-      // Criar nova conversa
-      console.log('[Chat] Criando nova conversa direta com created_by:', currentUser.id);
-      
-      // Gerar ID da conversa no cliente para evitar SELECT após INSERT
-      const conversationId = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      console.log('[Chat] Novo conversationId:', conversationId);
-      
-      const { error: convError } = await supabase
-        .from('conversations')
-        .insert({
-          id: conversationId,
-          type: 'direct',
-          created_by: currentUser.id,
-        });
-      
-      if (convError) {
-        console.error('[Chat] Erro ao criar conversa:', convError);
-        
-        // Se erro 403 (RLS policy violation), problema de autenticação
-        if (convError.code === '42501') {
-          toast({
-            title: "Erro de permissão",
-            description: "Faça login novamente para criar conversas",
-            variant: "destructive",
-          });
-          navigate('/entrar');
-          return;
-        }
-        
-        throw convError;
-      }
-      
-      // Adicionar participantes
-      const { error: partError } = await supabase
-        .from('conversation_participants')
-        .insert([
-          { conversation_id: conversationId, user_id: currentUser.id },
-          { conversation_id: conversationId, user_id: userId },
-        ]);
-      
-      if (partError) throw partError;
-      
-      // Navegar para a nova conversa
-      navigate(`/chat/${conversationId}`);
-      toast({
-        title: "Conversa iniciada",
-        description: "Você pode começar a conversar agora",
+      // Criar/obter conversa direta via Edge Function (bypass RLS de participantes)
+      const { data: created, error: createError } = await supabase.functions.invoke('create-direct-conversation', {
+        body: { target_user_id: userId },
       });
+
+      if (createError) {
+        console.error('[Chat] Erro na edge function:', createError);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível criar a conversa',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const newId = (created as any)?.id;
+      if (!newId) {
+        console.error('[Chat] Edge function não retornou id');
+        toast({ title: 'Erro', description: 'Falha ao criar conversa', variant: 'destructive' });
+        return;
+      }
+
+      // Navegar para a nova conversa
+      navigate(`/chat/${newId}`);
+      toast({ title: 'Conversa iniciada', description: 'Você pode começar a conversar agora' });
     } catch (error) {
       console.error('[Chat] Erro ao criar conversa:', error);
       toast({
