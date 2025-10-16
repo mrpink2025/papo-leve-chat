@@ -217,22 +217,43 @@ check_directory() {
 # Corrigir propriedade do repositório Git
 fix_git_ownership() {
     step "Verificando configuração do Git..."
-    
+
     # Validar mudança de diretório
     if ! cd "$APP_DIR" 2>/dev/null; then
         error "Falha ao acessar diretório: $APP_DIR"
     fi
-    
+
     # Confirmar que estamos no diretório correto
     if [[ "$PWD" != "$APP_DIR" ]]; then
         error "Diretório atual incorreto. Esperado: $APP_DIR, Atual: $PWD"
     fi
-    
-    # Verificar se há erro de propriedade
+
+    # Verificar status do Git e tratar 'unsafe repository'
+    local status_output
+    status_output=$(git status 2>&1 || true)
+
+    if [[ "$status_output" == *"dubious ownership"* || "$status_output" == *"unsafe repository"* ]]; then
+        warning "Repositório marcado como 'unsafe'. Configurando safe.directory (global)..."
+        if git config --global --add safe.directory "$APP_DIR"; then
+            success "safe.directory (global) configurado"
+            # Tentar novamente após configurar
+            if git status &>/dev/null; then
+                success "Repositório Git OK após ajuste de segurança"
+                return 0
+            fi
+        else
+            error "Falha ao configurar safe.directory global para $APP_DIR"
+        fi
+    fi
+
+    # Se ainda falhar, tentar configuração local (quando permitido)
     if ! git status &>/dev/null; then
-        warning "Configurando repositório Git como diretório seguro..."
-        git config --local safe.directory "$APP_DIR"
-        success "Repositório Git configurado"
+        warning "Tentando configurar safe.directory (local)..."
+        if git config --local safe.directory "$APP_DIR"; then
+            success "Repositório Git configurado (local)"
+        else
+            error "Falha ao configurar safe.directory local. Verifique permissões e propriedade do diretório."
+        fi
     else
         success "Repositório Git OK"
     fi
@@ -339,9 +360,17 @@ check_updates() {
     fi
     
     # Garantir que o repositório Git está configurado corretamente
-    if ! git status &>/dev/null; then
-        warning "Corrigindo configuração do Git..."
-        git config --local safe.directory "$APP_DIR"
+    status_output=$(git status 2>&1 || true)
+    if [[ "$status_output" == *"dubious ownership"* || "$status_output" == *"unsafe repository"* ]]; then
+        warning "Repositório marcado como 'unsafe'. Ajustando safe.directory (global)..."
+        if git config --global --add safe.directory "$APP_DIR"; then
+            success "safe.directory (global) configurado"
+        else
+            error "Falha ao configurar safe.directory global"
+        fi
+    elif ! git status &>/dev/null; then
+        warning "Corrigindo configuração do Git (local)..."
+        git config --local safe.directory "$APP_DIR" || warning "Não foi possível configurar safe.directory local"
     fi
     
     git fetch origin 2>&1 | tee -a "${LOG_FILE}"
