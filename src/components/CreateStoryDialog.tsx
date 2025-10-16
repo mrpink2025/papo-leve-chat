@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useState } from 'react';
 import { useStories } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ImagePlus, Loader2 } from 'lucide-react';
 
@@ -21,6 +22,7 @@ export const CreateStoryDialog = ({ open, onOpenChange }: CreateStoryDialogProps
   const [isUploading, setIsUploading] = useState(false);
   const { createStory } = useStories();
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -37,30 +39,62 @@ export const CreateStoryDialog = ({ open, onOpenChange }: CreateStoryDialogProps
   const handleSubmit = async () => {
     if (!file || !user) return;
 
+    // Validações
+    const isVideo = file.type.startsWith('video/');
+    const isImage = file.type.startsWith('image/');
+    
+    if (!isVideo && !isImage) {
+      toast({
+        title: 'Erro',
+        description: 'Apenas imagens e vídeos são permitidos.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024; // 50MB para vídeo, 10MB para imagem
+    if (file.size > maxSize) {
+      toast({
+        title: 'Erro',
+        description: `Arquivo muito grande. Máximo: ${isVideo ? '50MB' : '10MB'}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('chat-media')
-        .upload(filePath, file);
+        .from('stories')
+        .upload(filePath, file, {
+          contentType: file.type,
+          cacheControl: '86400',
+          upsert: false
+        });
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('chat-media')
+        .from('stories')
         .getPublicUrl(filePath);
 
-      const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
+      const mediaType = isVideo ? 'video' : 'image';
       createStory({ mediaUrl: publicUrl, mediaType, caption });
       onOpenChange(false);
       setCaption('');
       setPreview(null);
       setFile(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading story:', error);
+      toast({
+        title: 'Erro ao enviar',
+        description: error.message || 'Não foi possível fazer upload do story.',
+        variant: 'destructive',
+      });
     } finally {
       setIsUploading(false);
     }

@@ -89,10 +89,11 @@ export const useStories = () => {
         description: 'Seu story foi publicado com sucesso.',
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('Story creation error:', error);
       toast({
-        title: 'Erro',
-        description: 'Não foi possível criar o story.',
+        title: 'Erro ao criar story',
+        description: error.message || 'Não foi possível criar o story.',
         variant: 'destructive',
       });
     },
