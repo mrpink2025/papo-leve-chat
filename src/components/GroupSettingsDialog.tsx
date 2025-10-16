@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { UserMinus, UserPlus, Crown, X } from "lucide-react";
+import { UserMinus, UserPlus, Crown, Camera, Save } from "lucide-react";
 
 interface GroupSettingsDialogProps {
   open: boolean;
@@ -43,6 +43,11 @@ const GroupSettingsDialog = ({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newMemberUsername, setNewMemberUsername] = useState("");
+  const [groupName, setGroupName] = useState("");
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch group info
   const { data: group } = useQuery({
@@ -55,6 +60,11 @@ const GroupSettingsDialog = ({
         .single();
 
       if (error) throw error;
+      
+      // Set initial values
+      setGroupName(data.name || "");
+      setAvatarPreview(data.avatar_url);
+      
       return data;
     },
     enabled: open,
@@ -102,6 +112,73 @@ const GroupSettingsDialog = ({
     (p) => p.user_id === user?.id
   );
   const isAdmin = currentUserParticipant?.role === "admin";
+
+  // Handle avatar file selection
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Update group info mutation
+  const updateGroupMutation = useMutation({
+    mutationFn: async () => {
+      let avatarUrl = group?.avatar_url;
+
+      // Upload new avatar if selected
+      if (avatarFile) {
+        const fileExt = avatarFile.name.split(".").pop();
+        const fileName = `${conversationId}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(filePath, avatarFile, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(filePath);
+
+        avatarUrl = urlData.publicUrl;
+      }
+
+      // Update conversation
+      const { error } = await supabase
+        .from("conversations")
+        .update({
+          name: groupName,
+          avatar_url: avatarUrl,
+        })
+        .eq("id", conversationId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["group", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+      setIsEditingInfo(false);
+      setAvatarFile(null);
+      toast({
+        title: "Grupo atualizado",
+        description: "As informações do grupo foram atualizadas com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar grupo",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   // Add member mutation
   const addMemberMutation = useMutation({
@@ -204,18 +281,86 @@ const GroupSettingsDialog = ({
 
         <div className="space-y-6">
           {/* Group Info */}
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={group?.avatar_url || undefined} />
-              <AvatarFallback>
-                {group?.name?.substring(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg">{group?.name}</h3>
-              <p className="text-sm text-muted-foreground">
-                {participants.length} membros
-              </p>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={avatarPreview || undefined} />
+                  <AvatarFallback>
+                    {groupName?.substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                {isAdmin && isEditingInfo && (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Camera size={14} />
+                    </Button>
+                  </>
+                )}
+              </div>
+              <div className="flex-1">
+                {isEditingInfo ? (
+                  <Input
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    placeholder="Nome do grupo"
+                    className="font-semibold text-lg"
+                  />
+                ) : (
+                  <h3 className="font-semibold text-lg">{group?.name}</h3>
+                )}
+                <p className="text-sm text-muted-foreground">
+                  {participants.length} membros
+                </p>
+              </div>
+              {isAdmin && (
+                <div className="flex gap-2">
+                  {isEditingInfo ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setIsEditingInfo(false);
+                          setGroupName(group?.name || "");
+                          setAvatarPreview(group?.avatar_url);
+                          setAvatarFile(null);
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => updateGroupMutation.mutate()}
+                        disabled={updateGroupMutation.isPending || !groupName.trim()}
+                      >
+                        <Save size={16} className="mr-2" />
+                        Salvar
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditingInfo(true)}
+                    >
+                      Editar
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
