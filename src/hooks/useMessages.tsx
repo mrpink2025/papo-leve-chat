@@ -38,23 +38,7 @@ export const useMessages = (conversationId: string | undefined, userId: string |
 
       const { data, error } = await supabase
         .from("messages")
-        .select(`
-          id,
-          conversation_id,
-          sender_id,
-          content,
-          type,
-          metadata,
-          edited,
-          reply_to,
-          created_at,
-          profiles:sender_id (
-            id,
-            username,
-            full_name,
-            avatar_url
-          )
-        `)
+        .select("*")
         .eq("conversation_id", conversationId)
         .eq("deleted", false)
         .order("created_at", { ascending: false })
@@ -62,10 +46,23 @@ export const useMessages = (conversationId: string | undefined, userId: string |
 
       if (error) throw error;
 
-      return data.map((msg: any) => ({
-        ...msg,
-        sender: msg.profiles,
-      })).reverse();
+      // Fetch sender profiles separately
+      const messagesWithSenders = await Promise.all(
+        data.map(async (msg: any) => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("id, username, full_name, avatar_url")
+            .eq("id", msg.sender_id)
+            .single();
+
+          return {
+            ...msg,
+            sender: profile,
+          };
+        })
+      );
+
+      return messagesWithSenders.reverse();
     },
     enabled: !!conversationId,
   });
@@ -123,6 +120,29 @@ export const useMessages = (conversationId: string | undefined, userId: string |
                 status: "delivered",
               });
             }, 0);
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const updatedMessage = payload.new as any;
+          
+          // If message was deleted, remove from cache
+          if (updatedMessage.deleted) {
+            queryClient.setQueryData(
+              ["messages", conversationId, 0],
+              (old: Message[] = []) => old.filter(msg => msg.id !== updatedMessage.id)
+            );
+          } else {
+            // Otherwise update the message
+            queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
           }
         }
       )
