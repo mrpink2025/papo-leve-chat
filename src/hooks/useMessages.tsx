@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect } from "react";
+import { useNotifications } from "./useNotifications";
 
 export interface Message {
   id: string;
@@ -19,6 +20,7 @@ export interface Message {
 
 export const useMessages = (conversationId: string | undefined, userId: string | undefined) => {
   const queryClient = useQueryClient();
+  const { sendNotification } = useNotifications();
 
   const query = useQuery({
     queryKey: ["messages", conversationId],
@@ -88,6 +90,27 @@ export const useMessages = (conversationId: string | undefined, userId: string |
             ["messages", conversationId],
             (old: Message[] = []) => [...old, messageWithSender]
           );
+
+          // Send notification if message is from another user
+          if (newMessage.sender_id !== userId && document.hidden) {
+            const senderName = profile?.full_name || profile?.username || "Alguém";
+            sendNotification(
+              senderName,
+              newMessage.content,
+              profile?.avatar_url
+            );
+          }
+
+          // Mark message as delivered
+          if (newMessage.sender_id !== userId) {
+            setTimeout(() => {
+              supabase.from("message_status").upsert({
+                message_id: newMessage.id,
+                user_id: userId,
+                status: "delivered",
+              });
+            }, 0);
+          }
         }
       )
       .subscribe();
@@ -98,7 +121,15 @@ export const useMessages = (conversationId: string | undefined, userId: string |
   }, [conversationId, queryClient]);
 
   const sendMessage = useMutation({
-    mutationFn: async (content: string) => {
+    mutationFn: async ({
+      content,
+      type = "text",
+      metadata,
+    }: {
+      content: string;
+      type?: string;
+      metadata?: any;
+    }) => {
       if (!conversationId || !userId) throw new Error("Missing data");
 
       const { data, error } = await supabase
@@ -107,7 +138,8 @@ export const useMessages = (conversationId: string | undefined, userId: string |
           conversation_id: conversationId,
           sender_id: userId,
           content,
-          type: "text",
+          type,
+          metadata,
         })
         .select()
         .single();
@@ -119,6 +151,13 @@ export const useMessages = (conversationId: string | undefined, userId: string |
         .from("conversations")
         .update({ updated_at: new Date().toISOString() })
         .eq("id", conversationId);
+
+      // Create sent status
+      await supabase.from("message_status").insert({
+        message_id: data.id,
+        user_id: userId,
+        status: "sent",
+      });
 
       return data;
     },
