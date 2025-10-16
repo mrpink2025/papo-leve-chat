@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { Virtuoso } from "react-virtuoso";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatHeader from "@/components/ChatHeader";
 import MessageBubble from "@/components/MessageBubble";
 import MessageInput from "@/components/MessageInput";
@@ -45,6 +48,7 @@ const Chat = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<any>(null);
   const processedMessagesRef = useRef<Set<string>>(new Set());
   const [replyToMessage, setReplyToMessage] = useState<{ id: string; content: string } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -55,6 +59,9 @@ const Chat = () => {
     avatar?: string;
     bio?: string;
   } | null>(null);
+  
+  // Sincronização real-time centralizada
+  useRealtimeSync(user?.id);
 
   const { data: conversation } = useQuery<ConversationData>({
     queryKey: ["conversation", id],
@@ -611,16 +618,33 @@ const Chat = () => {
         />
       )}
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-chat-pattern">
-        {hasNextPage && (
-          <div className="flex justify-center py-2">
-            <Button variant="ghost" size="sm" onClick={loadMore}>
-              Carregar mensagens antigas
-            </Button>
-          </div>
-        )}
-        
-        {messages.map((message: any, index: number) => {
+      <Virtuoso
+        ref={virtuosoRef}
+        data={messages}
+        initialTopMostItemIndex={messages.length > 0 ? messages.length - 1 : 0}
+        followOutput="smooth"
+        alignToBottom
+        className="flex-1 bg-chat-pattern"
+        style={{ height: '100%' }}
+        components={{
+          Header: () => (
+            hasNextPage ? (
+              <div className="flex justify-center py-2">
+                <Button variant="ghost" size="sm" onClick={loadMore}>
+                  Carregar mensagens antigas
+                </Button>
+              </div>
+            ) : null
+          ),
+          Footer: () => (
+            typingUsers.length > 0 ? (
+              <div className="px-4 py-2">
+                <TypingIndicator users={typingUsers} />
+              </div>
+            ) : null
+          ),
+        }}
+        itemContent={(index, message: any) => {
           const showDateSeparator =
             index === 0 ||
             !isSameDay(
@@ -633,17 +657,16 @@ const Chat = () => {
             ? messages.find((m: any) => m.id === message.reply_to)?.content
             : undefined;
 
-          // Detectar se deve mostrar info do remetente (primeira mensagem do autor ou após separador de data)
           const prevMessage = index > 0 ? messages[index - 1] : null;
           const showSenderInfo = 
-            conversation.type === "group" &&
+            conversation?.type === "group" &&
             message.sender_id !== user?.id &&
             (!prevMessage || 
              prevMessage.sender_id !== message.sender_id ||
              showDateSeparator);
 
           return (
-            <div key={message.id} id={message.id}>
+            <div className="px-4 py-1" id={message.id}>
               {showDateSeparator && (
                 <DateSeparator date={new Date(message.created_at)} />
               )}
@@ -669,7 +692,7 @@ const Chat = () => {
                     removeFromQueue(msgId);
                   }
                 }}
-                isGroup={conversation.type === "group"}
+                isGroup={conversation?.type === "group"}
                 showSenderInfo={showSenderInfo}
                 senderName={message.sender?.full_name || message.sender?.username || "Usuário"}
                 senderAvatar={message.sender?.avatar_url}
@@ -681,10 +704,8 @@ const Chat = () => {
               />
             </div>
           );
-        })}
-        <div ref={messagesEndRef} />
-        <TypingIndicator users={typingUsers} />
-      </div>
+        }}
+      />
 
       <MessageInput
         onSendMessage={handleSendMessage}

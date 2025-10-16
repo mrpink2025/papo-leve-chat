@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversations";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -26,6 +27,9 @@ const Index = () => {
   const { data: conversations = [], isLoading } = useConversations(user?.id, false);
   const { data: archivedConversations = [] } = useConversations(user?.id, true);
   const { canInstall, promptInstall, isIOS } = useInstallPrompt();
+  
+  // Sincronização real-time centralizada
+  useRealtimeSync(user?.id);
 
   const handleInstall = async () => {
     if (isIOS) {

@@ -886,6 +886,31 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      get_total_unread_count: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
+      get_user_conversations: {
+        Args: { p_include_archived?: boolean; p_user_id: string }
+        Returns: {
+          archived: boolean
+          conversation_avatar_url: string
+          conversation_id: string
+          conversation_name: string
+          conversation_type: string
+          conversation_updated_at: string
+          last_message_content: string
+          last_message_created_at: string
+          member_count: number
+          other_avatar_url: string
+          other_bio: string
+          other_full_name: string
+          other_status: string
+          other_user_id: string
+          other_username: string
+          unread_count: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

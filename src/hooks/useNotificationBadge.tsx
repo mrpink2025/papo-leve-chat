@@ -10,41 +10,27 @@ import { useQuery } from '@tanstack/react-query';
 export const useNotificationBadge = () => {
   const { user } = useAuth();
 
-  // Buscar contagem de mensagens não lidas
+  // Buscar contagem de mensagens não lidas usando RPC otimizada
   const { data: unreadCount = 0, refetch } = useQuery({
     queryKey: ['unread-count', user?.id],
     queryFn: async () => {
       if (!user?.id) return 0;
 
-      // Buscar conversas do usuário
-      const { data: participations } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id, last_read_at')
-        .eq('user_id', user.id);
+      // Usar RPC function otimizada - 1 query em vez de 50+
+      const { data, error } = await supabase.rpc('get_total_unread_count', {
+        p_user_id: user.id,
+      });
 
-      if (!participations || participations.length === 0) return 0;
-
-      let totalUnread = 0;
-
-      // Para cada conversa, contar mensagens não lidas
-      for (const participation of participations) {
-        const { count } = await supabase
-          .from('messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('conversation_id', participation.conversation_id)
-          .neq('sender_id', user.id)
-          .gt(
-            'created_at',
-            participation.last_read_at || new Date(0).toISOString()
-          );
-
-        totalUnread += count || 0;
+      if (error) {
+        console.error('Erro ao buscar contagem de não lidas:', error);
+        return 0;
       }
 
-      return totalUnread;
+      return Number(data) || 0;
     },
     enabled: !!user?.id,
     refetchInterval: 30000, // Atualizar a cada 30s
+    staleTime: 10000, // Cache por 10s
   });
 
   // Atualizar badge do app

@@ -30,119 +30,45 @@ export const useConversations = (userId: string | undefined, includeArchived = f
     queryFn: async () => {
       if (!userId) return [];
 
-      // Fetch participations without embed
-      let query = supabase
-        .from("conversation_participants")
-        .select("conversation_id, last_read_at, archived")
-        .eq("user_id", userId);
+      // Usar RPC function otimizada - 1 query em vez de 150+
+      const { data, error } = await supabase.rpc("get_user_conversations", {
+        p_user_id: userId,
+        p_include_archived: includeArchived,
+      });
 
-      if (!includeArchived) {
-        query = query.eq("archived", false);
-      }
-
-      const { data: participations, error } = await query;
       if (error) throw error;
-      if (!participations || participations.length === 0) return [];
+      if (!data || data.length === 0) return [];
 
-      // Fetch conversations separately
-      const convIds = [...new Set(participations.map((p) => p.conversation_id))];
-      const { data: conversations, error: convsError } = await supabase
-        .from("conversations")
-        .select("id, type, name, avatar_url, updated_at")
-        .in("id", convIds);
-
-      if (convsError) throw convsError;
-
-      const convById = new Map(conversations?.map((c) => [c.id, c]) || []);
-
-      // For direct conversations, fetch other participants
-      const { data: allParticipants, error: partsError } = await supabase
-        .from("conversation_participants")
-        .select("conversation_id, user_id")
-        .in("conversation_id", convIds);
-
-      if (partsError) throw partsError;
-
-      const otherUserIds = [
-        ...new Set(
-          allParticipants
-            ?.filter((p) => p.user_id !== userId)
-            .map((p) => p.user_id) || []
-        ),
-      ];
-
-      const { data: otherProfiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, username, full_name, avatar_url, status, bio")
-        .in("id", otherUserIds);
-
-      if (profilesError) throw profilesError;
-
-      const profileById = new Map(otherProfiles?.map((p) => [p.id, p]) || []);
-      const convIdToOtherUserId = new Map(
-        allParticipants
-          ?.filter((p) => p.user_id !== userId)
-          .map((p) => [p.conversation_id, p.user_id]) || []
-      );
-
-      const enrichedConversations = await Promise.all(
-        participations.map(async (p: any) => {
-          const conversation = convById.get(p.conversation_id);
-          if (!conversation) return null;
-
-          // Get last message
-          const { data: lastMessages } = await supabase
-            .from("messages")
-            .select("content, created_at")
-            .eq("conversation_id", conversation.id)
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          const lastMessage = lastMessages && lastMessages.length > 0 ? lastMessages[0] : null;
-
-          // Get unread count
-          const { count } = await supabase
-            .from("messages")
-            .select("*", { count: "exact", head: true })
-            .eq("conversation_id", conversation.id)
-            .gt("created_at", p.last_read_at || "1970-01-01");
-
-          // For direct conversations, get other participant
-          let otherParticipant = null;
-          let memberCount = undefined;
-          
-          if (conversation.type === "direct") {
-            const otherUserId = convIdToOtherUserId.get(conversation.id);
-            if (otherUserId) {
-              otherParticipant = profileById.get(otherUserId) || null;
+      // Mapear resultado da RPC para formato esperado
+      return data.map((row: any) => ({
+        id: row.conversation_id,
+        type: row.conversation_type,
+        name: row.conversation_name,
+        avatar_url: row.conversation_avatar_url,
+        updated_at: row.conversation_updated_at,
+        archived: row.archived,
+        last_message: row.last_message_content
+          ? {
+              content: row.last_message_content,
+              created_at: row.last_message_created_at,
             }
-          } else if (conversation.type === "group") {
-            // Count members in group
-            const { count: groupMemberCount } = await supabase
-              .from("conversation_participants")
-              .select("*", { count: "exact", head: true })
-              .eq("conversation_id", conversation.id);
-            memberCount = groupMemberCount || 0;
-          }
-
-          return {
-            ...conversation,
-            archived: p.archived,
-            last_message: lastMessage,
-            unread_count: count || 0,
-            member_count: memberCount,
-            other_participant: otherParticipant,
-          };
-        })
-      );
-
-      return enrichedConversations
-        .filter((c) => c !== null)
-        .sort(
-          (a, b) =>
-            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-        );
+          : null,
+        unread_count: Number(row.unread_count) || 0,
+        member_count: row.conversation_type === "group" ? Number(row.member_count) : undefined,
+        other_participant:
+          row.conversation_type === "direct" && row.other_user_id
+            ? {
+                id: row.other_user_id,
+                username: row.other_username,
+                full_name: row.other_full_name,
+                avatar_url: row.other_avatar_url,
+                status: row.other_status,
+                bio: row.other_bio,
+              }
+            : null,
+      }));
     },
     enabled: !!userId,
+    staleTime: 30000, // Cache por 30s
   });
 };

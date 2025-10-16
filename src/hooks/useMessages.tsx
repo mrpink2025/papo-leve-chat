@@ -47,24 +47,22 @@ export const useMessages = (conversationId: string | undefined, userId: string |
         .range(start, end);
 
       if (error) throw error;
+      if (!data || data.length === 0) return [];
 
-      // Fetch sender profiles separately
-      const messagesWithSenders = await Promise.all(
-        data.map(async (msg: any) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("id, username, full_name, avatar_url")
-            .eq("id", msg.sender_id)
-            .single();
+      // Batch fetch sender profiles - 1 query em vez de 50+
+      const senderIds = [...new Set(data.map((m) => m.sender_id).filter(Boolean))];
+      
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username, full_name, avatar_url")
+        .in("id", senderIds);
 
-          return {
-            ...msg,
-            sender: profile,
-          };
-        })
-      );
+      const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
 
-      return messagesWithSenders.reverse();
+      return data.map((msg) => ({
+        ...msg,
+        sender: profileMap.get(msg.sender_id),
+      })).reverse();
     },
     enabled: !!conversationId,
   });
