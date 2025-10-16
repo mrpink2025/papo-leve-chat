@@ -356,6 +356,27 @@ export const useNativeVideoCall = () => {
       
       console.log('[useNativeVideoCall] Chamada registrada com sucesso:', callNotification);
       
+      // ✅ FASE 3: Enviar broadcast PRIMEIRO (fallback instantâneo)
+      try {
+        console.log('[useNativeVideoCall] 🔔 Enviando broadcast para:', recipientId);
+        const broadcastChannel = supabase.channel(`call_notifications`);
+        await broadcastChannel.send({
+          type: 'broadcast',
+          event: 'incoming-call',
+          payload: {
+            callId: callNotification.id,
+            callerId: callerId,
+            callerName: callerName,
+            callerAvatar: callerProfile?.avatar_url || null,
+            conversationId: conversationId,
+            callType: callType,
+          }
+        });
+        console.log('[useNativeVideoCall] ✅ Broadcast enviado com sucesso');
+      } catch (broadcastError) {
+        console.error('[useNativeVideoCall] ❌ Erro no broadcast:', broadcastError);
+      }
+      
       // 🔔 ENVIAR PUSH NOTIFICATION para o destinatário
       try {
         const callIcon = callType === 'video' ? '📹' : '📞';

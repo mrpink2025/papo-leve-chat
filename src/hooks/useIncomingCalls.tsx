@@ -94,6 +94,42 @@ export const useIncomingCalls = (userId: string | undefined) => {
           }
         }
       )
+      // ✅ FASE 3: Fallback via broadcast (notificação instantânea)
+      .on('broadcast', { event: 'incoming-call' }, (payload) => {
+        console.log('[useIncomingCalls] 🔔 Chamada recebida via broadcast:', payload);
+        
+        const { callId, callerId, callerName, callerAvatar, conversationId, callType } = payload.payload;
+        
+        const incomingCallData: IncomingCall = {
+          callId,
+          conversationId,
+          callerId,
+          callerName: callerName || 'Desconhecido',
+          callerAvatar: callerAvatar || undefined,
+          callType: callType as CallType,
+        };
+
+        setIncomingCall(incomingCallData);
+        playRingtone();
+
+        toast({
+          title: `📞 Chamada de ${callerName}`,
+          description: `Chamada de ${callType === 'video' ? 'vídeo' : 'áudio'} recebida`,
+        });
+
+        // Timeout de 30 segundos
+        const timeout = setTimeout(() => {
+          console.log('[useIncomingCalls] Chamada via broadcast não atendida');
+          stopRingtone();
+          setIncomingCall(null);
+          toast({
+            title: 'Chamada perdida',
+            description: `Você perdeu uma chamada de ${callerName}`,
+          });
+        }, 30000);
+        
+        setMissedTimeout(timeout);
+      })
       .subscribe((status) => {
         // FASE 6: Logs de debug
         console.log('[useIncomingCalls] Status da subscrição:', status);
