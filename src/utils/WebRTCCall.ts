@@ -29,6 +29,10 @@ export class WebRTCCall {
   private isInitiator: boolean;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   
+  // ✅ Transceivers estáveis (ordem fixa dos m-lines)
+  private audioTransceiver?: RTCRtpTransceiver;
+  private videoTransceiver?: RTCRtpTransceiver;
+  
   // Perfect Negotiation
   private polite: boolean;
   private makingOffer = false;
@@ -151,12 +155,33 @@ export class WebRTCCall {
 
     this.peerConnection = new RTCPeerConnection(config);
 
-    // Adicionar tracks locais
+    // ✅ FASE 1: Criar transceivers SEMPRE na mesma ordem (audio → video)
+    this.audioTransceiver = this.peerConnection.addTransceiver('audio', {
+      direction: 'sendrecv'
+    });
+    
+    this.videoTransceiver = this.peerConnection.addTransceiver('video', {
+      direction: this.callType === 'video' ? 'sendrecv' : 'recvonly'
+    });
+
+    // ✅ FASE 2: Anexar tracks aos senders (em vez de addTrack)
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => {
-        this.peerConnection!.addTrack(track, this.localStream!);
-      });
+      const audioTrack = this.localStream.getAudioTracks()[0];
+      const videoTrack = this.localStream.getVideoTracks()[0];
+      
+      if (audioTrack) {
+        await this.audioTransceiver.sender.replaceTrack(audioTrack);
+      }
+      
+      if (videoTrack && this.callType === 'video') {
+        await this.videoTransceiver.sender.replaceTrack(videoTrack);
+      }
     }
+
+    this.logEvent('TRANSCEIVERS_CREATED', {
+      audio: { mid: this.audioTransceiver.mid, direction: this.audioTransceiver.direction },
+      video: { mid: this.videoTransceiver.mid, direction: this.videoTransceiver.direction }
+    });
 
     // Receber tracks remotos
     this.remoteStream = new MediaStream();
@@ -231,20 +256,44 @@ export class WebRTCCall {
       }
     };
     
-    // Perfect Negotiation: onnegotiationneeded
+    // Perfect Negotiation: onnegotiationneeded com rollback
     this.peerConnection.onnegotiationneeded = async () => {
       try {
+        // ✅ Guardar contra renegociação durante estado instável
+        if (this.peerConnection!.signalingState !== 'stable') {
+          this.logEvent('NEGOTIATION_SKIPPED', { reason: 'unstable_signaling_state' });
+          return;
+        }
+        
         this.logEvent('NEGOTIATION_NEEDED');
         console.log('[WebRTC] Negotiation needed, making offer...');
         this.makingOffer = true;
-        await this.peerConnection!.setLocalDescription();
+        
+        const offer = await this.peerConnection!.createOffer();
+        await this.peerConnection!.setLocalDescription(offer);
+        
+        // ✅ Logar ordem dos transceivers após setLocalDescription
+        this.logTransceiverOrder('after_setLocalDescription');
+        
         this.sendSignal({
           type: 'offer',
           sdp: this.peerConnection!.localDescription?.sdp,
         });
-      } catch (err) {
+      } catch (err: any) {
         console.error('[WebRTC] Error during negotiation:', err);
-        this.logEvent('NEGOTIATION_FAILED', { error: (err as Error).message });
+        this.logEvent('NEGOTIATION_FAILED', { error: err.message });
+        
+        // ✅ Rollback se houver erro de m-line order
+        if (err.message?.includes('order of m-lines') && 
+            this.peerConnection?.signalingState === 'have-local-offer') {
+          try {
+            await this.peerConnection.setLocalDescription({ type: 'rollback' } as any);
+            this.logEvent('NEGOTIATION_ROLLBACK', { reason: 'm-line_order_error' });
+            console.log('[WebRTC] Rollback executado devido a erro de m-line order');
+          } catch (rollbackErr) {
+            console.error('[WebRTC] Erro ao fazer rollback:', rollbackErr);
+          }
+        }
       } finally {
         this.makingOffer = false;
       }
@@ -272,12 +321,13 @@ export class WebRTCCall {
     if (!this.peerConnection) return;
 
     try {
-      const offer = await this.peerConnection.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: this.callType === 'video',
-      });
+      // ✅ Remover offerToReceiveAudio/Video - transceivers já definem isso
+      const offer = await this.peerConnection.createOffer();
 
       await this.peerConnection.setLocalDescription(offer);
+      
+      // ✅ Logar ordem dos transceivers
+      this.logTransceiverOrder('after_createOffer');
 
       this.sendSignal({
         type: 'offer',
@@ -349,12 +399,18 @@ export class WebRTCCall {
     await this.peerConnection.setRemoteDescription(
       new RTCSessionDescription({ type: 'offer', sdp: signal.sdp })
     );
+    
+    // ✅ Logar ordem dos transceivers após setRemoteDescription
+    this.logTransceiverOrder('after_setRemoteDescription_offer');
 
     // Processar ICE candidates pendentes
     await this.processPendingIceCandidates();
 
     const answer = await this.peerConnection.createAnswer();
     await this.peerConnection.setLocalDescription(answer);
+    
+    // ✅ Logar ordem após setLocalDescription da resposta
+    this.logTransceiverOrder('after_setLocalDescription_answer');
 
     this.sendSignal({
       type: 'answer',
@@ -475,12 +531,10 @@ export class WebRTCCall {
       });
 
       const newVideoTrack = newStream.getVideoTracks()[0];
-      const sender = this.peerConnection
-        ?.getSenders()
-        .find(s => s.track?.kind === 'video');
-
-      if (sender) {
-        await sender.replaceTrack(newVideoTrack);
+      
+      // ✅ Usar transceiver direto para manter ordem estável
+      if (this.videoTransceiver?.sender) {
+        await this.videoTransceiver.sender.replaceTrack(newVideoTrack);
         videoTrack.stop();
         this.localStream.removeTrack(videoTrack);
         this.localStream.addTrack(newVideoTrack);
@@ -488,6 +542,8 @@ export class WebRTCCall {
         if (this.onLocalStream) {
           this.onLocalStream(this.localStream);
         }
+        
+        this.logEvent('CAMERA_SWITCHED', { facingMode: newFacingMode });
       }
     } catch (error) {
       console.error('[WebRTC] Erro ao alternar câmera:', error);
@@ -505,6 +561,13 @@ export class WebRTCCall {
     if (videoTrack) {
       videoTrack.stop();
       this.localStream.removeTrack(videoTrack);
+    }
+    
+    // ✅ Não remover transceiver - apenas definir como recvonly e replaceTrack(null)
+    if (this.videoTransceiver?.sender) {
+      await this.videoTransceiver.sender.replaceTrack(null);
+      this.videoTransceiver.direction = 'recvonly';
+      this.logEvent('FALLBACK_TO_AUDIO', { videoTransceiverDirection: 'recvonly' });
     }
   }
 
@@ -593,6 +656,19 @@ export class WebRTCCall {
     
     // Log detalhado no console
     console.log(`[WebRTC Event] ${event}`, data || '');
+  }
+  
+  // ✅ Logar ordem dos transceivers para debug de m-line
+  private logTransceiverOrder(context: string): void {
+    if (!this.peerConnection) return;
+    
+    const transceivers = this.peerConnection.getTransceivers().map(t => ({
+      mid: t.mid,
+      kind: t.receiver.track?.kind || 'unknown',
+      direction: t.direction
+    }));
+    
+    this.logEvent('TRANSCEIVER_ORDER', { context, transceivers });
   }
 
   // Encerrar chamada
