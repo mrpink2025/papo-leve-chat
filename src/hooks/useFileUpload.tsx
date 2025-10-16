@@ -2,58 +2,79 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+type MediaType = "image" | "video" | "document" | "voice";
+
+interface UploadOptions {
+  file: File;
+  conversationId: string;
+  type: MediaType;
+}
+
 export const useFileUpload = () => {
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
 
-  const uploadImage = async (
-    file: File,
-    conversationId: string
-  ): Promise<string | null> => {
+  const getBucketForType = (type: MediaType): string => {
+    switch (type) {
+      case "image": return "chat-media";
+      case "video": return "videos";
+      case "document": return "documents";
+      case "voice": return "voice-notes";
+      default: return "chat-media";
+    }
+  };
+
+  const getMaxSizeForType = (type: MediaType): number => {
+    switch (type) {
+      case "image": return 5 * 1024 * 1024; // 5MB
+      case "video": return 50 * 1024 * 1024; // 50MB
+      case "document": return 10 * 1024 * 1024; // 10MB
+      case "voice": return 5 * 1024 * 1024; // 5MB
+      default: return 5 * 1024 * 1024;
+    }
+  };
+
+  const uploadFile = async ({
+    file,
+    conversationId,
+    type
+  }: UploadOptions): Promise<string | null> => {
     try {
       setUploading(true);
 
-      // Validate file type
-      if (!file.type.startsWith("image/")) {
+      const maxSize = getMaxSizeForType(type);
+      if (file.size > maxSize) {
         toast({
           title: "Erro",
-          description: "Apenas imagens são permitidas",
+          description: `Arquivo muito grande (máximo ${maxSize / 1024 / 1024}MB)`,
           variant: "destructive",
         });
         return null;
       }
 
-      // Validate file size (5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "Erro",
-          description: "Imagem muito grande (máximo 5MB)",
-          variant: "destructive",
-        });
-        return null;
-      }
-
-      // Generate unique filename
+      const bucket = getBucketForType(type);
       const fileExt = file.name.split(".").pop();
       const fileName = `${conversationId}/${Date.now()}.${fileExt}`;
 
       // Upload to Supabase Storage
-      const { error: uploadError, data } = await supabase.storage
-        .from("chat-media")
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("chat-media")
-        .getPublicUrl(fileName);
+      // Get signed URL with 1 hour expiration
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(fileName, 3600);
 
-      return publicUrl;
+      if (signedError) throw signedError;
+
+      return signedData.signedUrl;
     } catch (error: any) {
       console.error("Upload error:", error);
       toast({
-        title: "Erro ao enviar imagem",
+        title: "Erro ao enviar arquivo",
         description: error.message,
         variant: "destructive",
       });
@@ -63,5 +84,13 @@ export const useFileUpload = () => {
     }
   };
 
-  return { uploadImage, uploading };
+  // Legacy support
+  const uploadImage = async (
+    file: File,
+    conversationId: string
+  ): Promise<string | null> => {
+    return uploadFile({ file, conversationId, type: "image" });
+  };
+
+  return { uploadFile, uploadImage, uploading };
 };

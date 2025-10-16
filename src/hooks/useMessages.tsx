@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNotifications } from "./useNotifications";
 
 export interface Message {
@@ -10,6 +10,9 @@ export interface Message {
   content: string;
   type: string;
   created_at: string;
+  metadata?: any;
+  edited?: boolean;
+  reply_to?: string;
   sender?: {
     id: string;
     username: string;
@@ -18,14 +21,20 @@ export interface Message {
   };
 }
 
+const MESSAGES_PER_PAGE = 50;
+
 export const useMessages = (conversationId: string | undefined, userId: string | undefined) => {
   const queryClient = useQueryClient();
   const { sendNotification } = useNotifications();
+  const [page, setPage] = useState(0);
 
   const query = useQuery({
-    queryKey: ["messages", conversationId],
+    queryKey: ["messages", conversationId, page],
     queryFn: async () => {
       if (!conversationId) return [];
+
+      const start = page * MESSAGES_PER_PAGE;
+      const end = start + MESSAGES_PER_PAGE - 1;
 
       const { data, error } = await supabase
         .from("messages")
@@ -35,6 +44,9 @@ export const useMessages = (conversationId: string | undefined, userId: string |
           sender_id,
           content,
           type,
+          metadata,
+          edited,
+          reply_to,
           created_at,
           profiles:sender_id (
             id,
@@ -45,14 +57,15 @@ export const useMessages = (conversationId: string | undefined, userId: string |
         `)
         .eq("conversation_id", conversationId)
         .eq("deleted", false)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .range(start, end);
 
       if (error) throw error;
 
       return data.map((msg: any) => ({
         ...msg,
         sender: msg.profiles,
-      }));
+      })).reverse();
     },
     enabled: !!conversationId,
   });
@@ -87,7 +100,7 @@ export const useMessages = (conversationId: string | undefined, userId: string |
           };
 
           queryClient.setQueryData(
-            ["messages", conversationId],
+            ["messages", conversationId, 0],
             (old: Message[] = []) => [...old, messageWithSender]
           );
 
@@ -118,17 +131,19 @@ export const useMessages = (conversationId: string | undefined, userId: string |
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, userId, sendNotification]);
 
   const sendMessage = useMutation({
     mutationFn: async ({
       content,
       type = "text",
       metadata,
+      reply_to,
     }: {
       content: string;
       type?: string;
       metadata?: any;
+      reply_to?: string;
     }) => {
       if (!conversationId || !userId) throw new Error("Missing data");
 
@@ -140,6 +155,7 @@ export const useMessages = (conversationId: string | undefined, userId: string |
           content,
           type,
           metadata,
+          reply_to,
         })
         .select()
         .single();
@@ -163,9 +179,15 @@ export const useMessages = (conversationId: string | undefined, userId: string |
     },
   });
 
+  const loadMore = () => {
+    setPage((prev) => prev + 1);
+  };
+
   return {
     messages: query.data || [],
     isLoading: query.isLoading,
+    hasNextPage: (query.data || []).length === MESSAGES_PER_PAGE,
+    loadMore,
     sendMessage: sendMessage.mutateAsync,
   };
 };
