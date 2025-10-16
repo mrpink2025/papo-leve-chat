@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from '@/hooks/use-toast';
+import { useNotificationPreferences } from './useNotificationPreferences';
 
 // VAPID Public Key - você precisará gerar um par de chaves VAPID
 const VAPID_PUBLIC_KEY = 'PLACEHOLDER_VAPID_PUBLIC_KEY';
@@ -14,6 +15,7 @@ interface PushSubscriptionData {
 
 export const usePushNotifications = () => {
   const { user } = useAuth();
+  const { preferences, shouldShowNotification } = useNotificationPreferences();
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -222,6 +224,8 @@ export const usePushNotifications = () => {
     isSupported: 'Notification' in window && 'serviceWorker' in navigator,
     requestPermission,
     unsubscribe,
+    preferences,
+    shouldShowNotification,
   };
 };
 

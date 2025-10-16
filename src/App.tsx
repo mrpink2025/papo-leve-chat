@@ -12,6 +12,7 @@ import Settings from "./pages/Settings";
 import Install from "./pages/Install";
 import Share from "./pages/Share";
 import NotFound from "./pages/NotFound";
+import NotificationSettings from "./pages/NotificationSettings";
 import { useAuth } from "./hooks/useAuth";
 import { useTheme } from "./hooks/useTheme";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
@@ -151,6 +152,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Settings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/app/configuracoes/notificacoes"
+                element={
+                  <ProtectedRoute>
+                    <NotificationSettings />
                   </ProtectedRoute>
                 }
               />

@@ -260,6 +260,62 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          badge_enabled: boolean | null
+          created_at: string | null
+          enabled: boolean | null
+          id: string
+          quiet_hours_days: number[] | null
+          quiet_hours_enabled: boolean | null
+          quiet_hours_end: string | null
+          quiet_hours_start: string | null
+          show_preview: boolean | null
+          sound_enabled: boolean | null
+          updated_at: string | null
+          user_id: string
+          vibration_enabled: boolean | null
+        }
+        Insert: {
+          badge_enabled?: boolean | null
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          quiet_hours_days?: number[] | null
+          quiet_hours_enabled?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          show_preview?: boolean | null
+          sound_enabled?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          vibration_enabled?: boolean | null
+        }
+        Update: {
+          badge_enabled?: boolean | null
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          quiet_hours_days?: number[] | null
+          quiet_hours_enabled?: boolean | null
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          show_preview?: boolean | null
+          sound_enabled?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          vibration_enabled?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
