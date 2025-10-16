@@ -115,14 +115,13 @@ const Chat = () => {
   const { 
     callState, 
     startCall, 
-    answerCall,
     endCall, 
     toggleVideo, 
     toggleAudio, 
     switchCamera,
     formatDuration 
   } = useNativeVideoCall();
-  const { incomingCall, acceptCall, rejectCall, clearIncomingCall } = useIncomingCalls(user?.id);
+  // Listener global agora está no App.tsx via GlobalIncomingCallOverlay
   const { trackEvent } = useAnalytics();
   const { markAsRead, getMessageStatus } = useMessageStatus(id, user?.id);
   const { isOnline: isNetworkOnline, addToQueue, removeFromQueue } = useOfflineQueue();
@@ -574,39 +573,19 @@ const Chat = () => {
         onSearch={() => setShowSearch(!showSearch)}
       />
 
-      {/* Chamada ativa */}
-      <NativeCallDialog
-        callState={callState}
-        onEndCall={endCall}
-        onToggleVideo={toggleVideo}
-        onToggleAudio={toggleAudio}
-        onSwitchCamera={switchCamera}
-        formatDuration={formatDuration}
-      />
-
-      {/* Chamada recebida */}
-      {incomingCall && (
-        <IncomingNativeCallDialog
-          open={true}
-          callerName={incomingCall.callerName}
-          callerAvatar={incomingCall.callerAvatar}
-          callType={incomingCall.callType}
-          onAccept={() => {
-            acceptCall();
-            answerCall(
-              incomingCall.callId,
-              incomingCall.conversationId,
-              incomingCall.callType,
-              {
-                name: incomingCall.callerName,
-                avatar: incomingCall.callerAvatar,
-              }
-            );
-            clearIncomingCall();
-          }}
-          onReject={rejectCall}
+      {/* Chamada ativa (local na página do chat) */}
+      {callState.isInCall && (
+        <NativeCallDialog
+          callState={callState}
+          onEndCall={endCall}
+          onToggleVideo={toggleVideo}
+          onToggleAudio={toggleAudio}
+          onSwitchCamera={switchCamera}
+          formatDuration={formatDuration}
         />
       )}
+      
+      {/* Overlay de chamadas recebidas agora é global (em App.tsx) */}
 
       {showSearch && (
         <SearchMessages

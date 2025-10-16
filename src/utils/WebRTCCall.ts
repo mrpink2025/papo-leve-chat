@@ -29,6 +29,11 @@ export class WebRTCCall {
   private isInitiator: boolean;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   
+  // Perfect Negotiation
+  private polite: boolean;
+  private makingOffer = false;
+  private ignoreOffer = false;
+  
   // Callbacks
   public onStatusChange?: (status: CallStatus) => void;
   public onRemoteStream?: (stream: MediaStream) => void;
@@ -39,6 +44,9 @@ export class WebRTCCall {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 3;
   private connectionQualityInterval: NodeJS.Timeout | null = null;
+  
+  // Telemetria
+  private eventLog: Array<{ timestamp: number; event: string; data?: any }> = [];
 
   constructor(
     conversationId: string,
@@ -52,16 +60,31 @@ export class WebRTCCall {
     this.callType = callType;
     this.isInitiator = isInitiator;
     this.callId = callId || `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Perfect Negotiation: callee é polite, caller é impolite
+    this.polite = !isInitiator;
+    
+    this.logEvent('CALL_CREATED', {
+      callId: this.callId,
+      isInitiator,
+      polite: this.polite,
+      callType
+    });
   }
 
   // Iniciar chamada
   async start(): Promise<void> {
     try {
+      this.logEvent('CALL_START_INITIATED', { route: window.location.pathname });
       console.log(`[WebRTC] Iniciando chamada ${this.callType}...`);
       this.updateStatus('calling');
 
       // Solicitar permissões e capturar mídia local
       await this.setupLocalMedia();
+      this.logEvent('MEDIA_TRACKS_ADDED', {
+        audio: !!this.localStream?.getAudioTracks().length,
+        video: !!this.localStream?.getVideoTracks().length
+      });
 
       // Criar peer connection
       await this.createPeerConnection();
@@ -78,8 +101,10 @@ export class WebRTCCall {
       this.startConnectionQualityMonitor();
 
       console.log('[WebRTC] Chamada iniciada com sucesso');
+      this.logEvent('CALL_START_SUCCESS');
     } catch (error: any) {
       console.error('[WebRTC] Erro ao iniciar chamada:', error);
+      this.logEvent('CALL_START_FAILED', { error: error.message });
       this.handleError(error);
     }
   }
@@ -149,20 +174,30 @@ export class WebRTCCall {
     // Monitorar ICE candidates
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
+        this.logEvent('ICE_CANDIDATE_GENERATED', { candidate: event.candidate.candidate });
         this.sendSignal({
           type: 'ice-candidate',
           candidate: event.candidate.toJSON(),
         });
       }
     };
+    
+    // Monitorar gathering state
+    this.peerConnection.onicegatheringstatechange = () => {
+      const state = this.peerConnection?.iceGatheringState;
+      this.logEvent('ICE_GATHERING_STATE', { state });
+      console.log('[WebRTC] ICE gathering state:', state);
+    };
 
     // Monitorar estado da conexão
     this.peerConnection.onconnectionstatechange = () => {
       const state = this.peerConnection?.connectionState;
+      this.logEvent('PEERCONNECTION_STATE', { state });
       console.log('[WebRTC] Connection state:', state);
 
       switch (state) {
         case 'connected':
+          this.logEvent('CALL_CONNECTED');
           this.updateStatus('connected');
           this.reconnectAttempts = 0;
           break;
@@ -170,6 +205,7 @@ export class WebRTCCall {
           this.handleDisconnection();
           break;
         case 'failed':
+          this.logEvent('CALL_FAILED', { reason: 'peer_connection_failed' });
           this.updateStatus('failed');
           this.attemptReconnect();
           break;
@@ -182,10 +218,35 @@ export class WebRTCCall {
     // Monitorar estado do ICE
     this.peerConnection.oniceconnectionstatechange = () => {
       const state = this.peerConnection?.iceConnectionState;
+      this.logEvent('ICE_CONNECTION_STATE', { state });
       console.log('[WebRTC] ICE connection state:', state);
 
-      if (state === 'disconnected' || state === 'failed') {
+      if (state === 'connected') {
+        this.logEvent('ICE_CONNECTED');
+      } else if (state === 'failed') {
+        this.logEvent('ICE_FAILED', { reason: 'ice_connection_failed' });
         this.attemptReconnect();
+      } else if (state === 'disconnected') {
+        this.attemptReconnect();
+      }
+    };
+    
+    // Perfect Negotiation: onnegotiationneeded
+    this.peerConnection.onnegotiationneeded = async () => {
+      try {
+        this.logEvent('NEGOTIATION_NEEDED');
+        console.log('[WebRTC] Negotiation needed, making offer...');
+        this.makingOffer = true;
+        await this.peerConnection!.setLocalDescription();
+        this.sendSignal({
+          type: 'offer',
+          sdp: this.peerConnection!.localDescription?.sdp,
+        });
+      } catch (err) {
+        console.error('[WebRTC] Error during negotiation:', err);
+        this.logEvent('NEGOTIATION_FAILED', { error: (err as Error).message });
+      } finally {
+        this.makingOffer = false;
       }
     };
 
@@ -262,11 +323,23 @@ export class WebRTCCall {
     }
   }
 
-  // Processar oferta (receptor)
+  // Processar oferta (receptor) - Perfect Negotiation
   private async handleOffer(signal: any): Promise<void> {
     if (!this.peerConnection) return;
 
+    this.logEvent('SIG_RCVD_OFFER', { from: signal.from });
     this.updateStatus('connecting');
+
+    const offerCollision = (signal.type === 'offer') &&
+      (this.makingOffer || this.peerConnection.signalingState !== 'stable');
+    
+    this.ignoreOffer = !this.polite && offerCollision;
+    
+    if (this.ignoreOffer) {
+      this.logEvent('OFFER_IGNORED', { reason: 'collision_impolite' });
+      console.log('[WebRTC] Ignorando oferta (impolite durante colisão)');
+      return;
+    }
 
     await this.peerConnection.setRemoteDescription(
       new RTCSessionDescription({ type: 'offer', sdp: signal.sdp })
@@ -283,6 +356,7 @@ export class WebRTCCall {
       sdp: answer.sdp,
     });
 
+    this.logEvent('SIG_SENT_ANSWER');
     console.log('[WebRTC] Resposta criada e enviada');
   }
 
@@ -290,6 +364,7 @@ export class WebRTCCall {
   private async handleAnswer(signal: any): Promise<void> {
     if (!this.peerConnection) return;
 
+    this.logEvent('SIG_RCVD_ANSWER', { from: signal.from });
     this.updateStatus('connecting');
 
     await this.peerConnection.setRemoteDescription(
@@ -491,8 +566,33 @@ export class WebRTCCall {
     this.updateStatus('reconnecting');
   }
 
+  // Método para exportar logs de telemetria
+  public getEventLog(): Array<{ timestamp: number; event: string; data?: any }> {
+    return this.eventLog;
+  }
+  
+  // Log interno de eventos
+  private logEvent(event: string, data?: any): void {
+    const logEntry = {
+      timestamp: Date.now(),
+      event,
+      data,
+      callId: this.callId
+    };
+    this.eventLog.push(logEntry);
+    
+    // Manter apenas últimos 100 eventos
+    if (this.eventLog.length > 100) {
+      this.eventLog = this.eventLog.slice(-100);
+    }
+    
+    // Log detalhado no console
+    console.log(`[WebRTC Event] ${event}`, data || '');
+  }
+
   // Encerrar chamada
   end(): void {
+    this.logEvent('CALL_ENDED_REASON', { reason: 'user_hangup' });
     console.log('[WebRTC] Encerrando chamada');
 
     // ✅ 1. PRIMEIRO enviar sinal de encerramento (antes de fechar canal)
@@ -554,6 +654,30 @@ export class WebRTCCall {
 
   // Atualizar status
   private updateStatus(status: CallStatus): void {
+    this.logEvent('STATUS_CHANGE', { status });
+    
+    // Atualizar status no banco de dados
+    if (this.callId && status === 'connected') {
+      supabase
+        .from('call_notifications')
+        .update({ status: 'active', started_at: new Date().toISOString() })
+        .eq('id', this.callId)
+        .then(({ error }) => {
+          if (error) console.error('[WebRTC] Erro ao atualizar status no banco:', error);
+        });
+    } else if (this.callId && status === 'ended') {
+      supabase
+        .from('call_notifications')
+        .update({ 
+          status: 'ended', 
+          ended_at: new Date().toISOString()
+        })
+        .eq('id', this.callId)
+        .then(({ error }) => {
+          if (error) console.error('[WebRTC] Erro ao atualizar status no banco:', error);
+        });
+    }
+    
     if (this.onStatusChange) {
       this.onStatusChange(status);
     }

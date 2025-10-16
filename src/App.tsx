@@ -24,6 +24,7 @@ import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import { NotificationPermissionGuard } from "./components/NotificationPermissionGuard";
+import { GlobalIncomingCallOverlay } from "./components/GlobalIncomingCallOverlay";
 import { Loader2 } from "lucide-react";
 
 // Loading fallback component
@@ -94,6 +95,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     <>
       {children}
       <NotificationPermissionGuard />
+      <GlobalIncomingCallOverlay />
     </>
   );
 };

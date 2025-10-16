@@ -69,26 +69,36 @@ export const useIncomingCalls = (userId: string | undefined) => {
               description: `Chamada de ${callData.call_type === 'video' ? 'vídeo' : 'áudio'} recebida`,
             });
 
-            // FASE 3: Timeout de 30 segundos para marcar como "missed"
+            // Timeout de 45 segundos para marcar como "missed" (apenas se não interagir)
             const timeout = setTimeout(async () => {
-              console.log('[useIncomingCalls] Chamada não atendida, marcando como missed');
-              
-              await supabase
+              // Verificar se a chamada ainda está ringing no banco
+              const { data: currentCall } = await supabase
                 .from('call_notifications')
-                .update({ 
-                  status: 'missed', 
-                  ended_at: new Date().toISOString() 
-                })
-                .eq('id', callData.id);
+                .select('status')
+                .eq('id', callData.id)
+                .single();
               
-              stopRingtone();
-              setIncomingCall(null);
-              
-              toast({
-                title: 'Chamada perdida',
-                description: `Você perdeu uma chamada de ${incomingCallData.callerName}`,
-              });
-            }, 30000); // 30 segundos
+              // Só marcar como missed se ainda estiver ringing (não foi atendida/rejeitada)
+              if (currentCall?.status === 'ringing') {
+                console.log('[useIncomingCalls] Timeout: marcando como missed');
+                
+                await supabase
+                  .from('call_notifications')
+                  .update({ 
+                    status: 'missed', 
+                    ended_at: new Date().toISOString() 
+                  })
+                  .eq('id', callData.id);
+                
+                stopRingtone();
+                setIncomingCall(null);
+                
+                toast({
+                  title: 'Chamada perdida',
+                  description: `Você perdeu uma chamada de ${incomingCallData.callerName}`,
+                });
+              }
+            }, 45000); // 45 segundos (mais tolerante)
             
             setMissedTimeout(timeout);
           }
@@ -117,16 +127,27 @@ export const useIncomingCalls = (userId: string | undefined) => {
           description: `Chamada de ${callType === 'video' ? 'vídeo' : 'áudio'} recebida`,
         });
 
-        // Timeout de 30 segundos
-        const timeout = setTimeout(() => {
-          console.log('[useIncomingCalls] Chamada via broadcast não atendida');
-          stopRingtone();
-          setIncomingCall(null);
-          toast({
-            title: 'Chamada perdida',
-            description: `Você perdeu uma chamada de ${callerName}`,
-          });
-        }, 30000);
+        // Timeout de 45 segundos
+        const timeout = setTimeout(async () => {
+          // Verificar status no banco antes de marcar como perdida
+          if (callId) {
+            const { data: currentCall } = await supabase
+              .from('call_notifications')
+              .select('status')
+              .eq('id', callId)
+              .single();
+            
+            if (currentCall?.status === 'ringing') {
+              console.log('[useIncomingCalls] Timeout broadcast: marcando como missed');
+              stopRingtone();
+              setIncomingCall(null);
+              toast({
+                title: 'Chamada perdida',
+                description: `Você perdeu uma chamada de ${callerName}`,
+              });
+            }
+          }
+        }, 45000);
         
         setMissedTimeout(timeout);
       })
@@ -173,11 +194,26 @@ export const useIncomingCalls = (userId: string | undefined) => {
       setMissedTimeout(null);
     }
 
-    // Atualizar status no banco
+    // Atualizar status no banco + enviar sinal
     await supabase
       .from('call_notifications')
       .update({ status: 'rejected', ended_at: new Date().toISOString() })
       .eq('id', incomingCall.callId);
+    
+    // Enviar sinal via Realtime para notificar caller
+    try {
+      const callChannel = supabase.channel(`call:${incomingCall.callId}`);
+      await callChannel.send({
+        type: 'broadcast',
+        event: 'signal',
+        payload: {
+          type: 'call-rejected',
+          from: userId,
+        }
+      });
+    } catch (error) {
+      console.error('[useIncomingCalls] Erro ao enviar sinal de rejeição:', error);
+    }
 
     setIncomingCall(null);
 
@@ -185,7 +221,7 @@ export const useIncomingCalls = (userId: string | undefined) => {
       title: 'Chamada recusada',
       description: 'Você recusou a chamada',
     });
-  }, [incomingCall, toast, missedTimeout]);
+  }, [incomingCall, toast, missedTimeout, userId]);
 
   // Limpar chamada (após atender)
   const clearIncomingCall = useCallback(() => {
