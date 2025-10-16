@@ -182,7 +182,7 @@ const Install = () => {
         <div className="text-center">
           <Button variant="ghost" onClick={() => navigate("/")} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
-            Voltar ao App
+            Voltar ao Início
           </Button>
         </div>
       </div>

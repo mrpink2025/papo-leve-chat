@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
+import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Chat from "./pages/Chat";
 import Auth from "./pages/Auth";
@@ -15,6 +16,7 @@ import { useAuth } from "./hooks/useAuth";
 import { useTheme } from "./hooks/useTheme";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useRegisterSW } from "virtual:pwa-register/react";
+import PWAInstallBanner from "./components/PWAInstallBanner";
 
 const queryClient = new QueryClient();
 
@@ -59,7 +61,25 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/entrar" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const PublicRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/app" replace />;
   }
 
   return <>{children}</>;
@@ -73,12 +93,39 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <PWAInstallBanner />
             <Routes>
-              <Route path="/auth" element={<Auth />} />
+              {/* Rotas públicas */}
+              <Route 
+                path="/" 
+                element={
+                  <PublicRoute>
+                    <Landing />
+                  </PublicRoute>
+                } 
+              />
+              <Route 
+                path="/entrar" 
+                element={
+                  <PublicRoute>
+                    <Auth />
+                  </PublicRoute>
+                } 
+              />
+              <Route 
+                path="/criar-conta" 
+                element={
+                  <PublicRoute>
+                    <Auth />
+                  </PublicRoute>
+                } 
+              />
               <Route path="/install" element={<Install />} />
               <Route path="/share" element={<Share />} />
+
+              {/* Rotas protegidas */}
               <Route
-                path="/"
+                path="/app"
                 element={
                   <ProtectedRoute>
                     <Index />
@@ -86,7 +133,7 @@ const App = () => (
                 }
               />
               <Route
-                path="/chat/:id"
+                path="/app/chat/:id"
                 element={
                   <ProtectedRoute>
                     <Chat />
@@ -94,14 +141,33 @@ const App = () => (
                 }
               />
               <Route
-                path="/settings"
+                path="/app/configuracoes"
                 element={
                   <ProtectedRoute>
                     <Settings />
                   </ProtectedRoute>
                 }
               />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+
+              {/* Redirecionar rotas antigas para manter compatibilidade */}
+              <Route 
+                path="/chat/:id" 
+                element={
+                  <ProtectedRoute>
+                    <Chat />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/settings" 
+                element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                } 
+              />
+
+              {/* 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </TooltipProvider>

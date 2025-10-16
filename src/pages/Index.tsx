@@ -84,7 +84,7 @@ const Index = () => {
           )}
           <ThemeToggle />
           <CreateGroupDialog />
-          <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} title="Configurações">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/app/configuracoes")} title="Configurações">
             <Settings className="h-5 w-5" />
           </Button>
           <Button variant="ghost" size="icon" onClick={signOut} title="Sair">
@@ -153,7 +153,7 @@ const Index = () => {
                     timestamp={timestamp}
                     unread={conversation.unread_count || 0}
                     online={isOnline}
-                    onClick={() => navigate(`/chat/${conversation.id}`)}
+                    onClick={() => navigate(`/app/chat/${conversation.id}`)}
                     isGroup={!isDirectChat}
                     memberCount={!isDirectChat ? conversation.member_count : undefined}
                     bio={isDirectChat ? conversation.other_participant?.bio : undefined}

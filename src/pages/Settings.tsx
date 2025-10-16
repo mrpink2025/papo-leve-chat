@@ -180,7 +180,7 @@ const Settings = () => {
   return (
     <div className="flex flex-col h-screen bg-background">
       <div className="bg-card border-b border-border p-4 flex items-center gap-3 shadow-sm">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/app")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-xl font-semibold">Configurações</h1>
