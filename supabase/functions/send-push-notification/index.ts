@@ -1,11 +1,17 @@
 // Signed by Mr_Pink — Nosso Papo (nossopapo.net)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import webpush from "https://esm.sh/web-push@3.6.6";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY");
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY");
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 interface PushPayload {
   title: string;
@@ -39,16 +45,27 @@ interface DeviceInfo {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   try {
     // Verificar método
     if (req.method !== "POST") {
-      return new Response("Method not allowed", { status: 405 });
+      return new Response("Method not allowed", { 
+        status: 405,
+        headers: corsHeaders 
+      });
     }
 
     // Verificar autenticação
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response("Unauthorized", { status: 401 });
+      return new Response("Unauthorized", { 
+        status: 401,
+        headers: corsHeaders 
+      });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -57,7 +74,10 @@ serve(async (req) => {
     const { recipientId, payload }: NotificationRequest = await req.json();
 
     if (!recipientId || !payload) {
-      return new Response("Missing required fields", { status: 400 });
+      return new Response("Missing required fields", { 
+        status: 400,
+        headers: corsHeaders 
+      });
     }
 
     // Verificar se VAPID keys estão configuradas
@@ -68,9 +88,19 @@ serve(async (req) => {
           success: false,
           error: "Push notifications not configured",
         }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        }
       );
     }
+
+    // Configurar VAPID para web-push
+    webpush.setVapidDetails(
+      'mailto:admin@nossopapo.net',
+      VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY
+    );
 
     // Buscar todas as inscrições do destinatário
     const { data: subscriptions, error: fetchError } = await supabase
@@ -82,7 +112,10 @@ serve(async (req) => {
       console.error("Error fetching subscriptions:", fetchError);
       return new Response(
         JSON.stringify({ success: false, error: fetchError.message }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        }
       );
     }
 
@@ -93,7 +126,10 @@ serve(async (req) => {
           message: "No subscriptions found for user",
           sent: 0,
         }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        }
       );
     }
 
@@ -158,32 +194,28 @@ serve(async (req) => {
             .update({ last_used_at: new Date().toISOString() })
             .eq("id", subscription.id);
 
-          // Enviar push notification real via Web Push API
+          // Enviar push notification real via Web Push API usando biblioteca web-push
           console.log(`[Push] Sending to ${subscription.device_name || "Unknown device"}`);
           console.log(`[Push] Endpoint: ${subscription.endpoint.substring(0, 50)}...`);
           console.log(`[Push] Badge count: ${unreadCount || 0}`);
           
-          // Enviar notificação usando Web Push API nativa
-          const pushResponse = await fetch(subscription.endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'TTL': '86400', // 24 horas
+          // Montar objeto de subscription para web-push
+          const pushSubscription = {
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: subscription.p256dh,
+              auth: subscription.auth,
             },
-            body: notificationPayload,
-          });
+          };
 
-          if (!pushResponse.ok) {
-            const errorText = await pushResponse.text();
-            console.error(`[Push] Failed: ${pushResponse.status} - ${errorText}`);
-            
-            // Se 404 ou 410, subscription é inválida
-            if (pushResponse.status === 404 || pushResponse.status === 410) {
-              throw new Error(`410 - Subscription expired`);
+          // Enviar usando web-push (faz criptografia e VAPID automaticamente)
+          await webpush.sendNotification(
+            pushSubscription,
+            notificationPayload,
+            {
+              TTL: 86400, // 24 horas
             }
-            
-            throw new Error(`Push failed: ${pushResponse.status}`);
-          }
+          );
           
           console.log(`[Push] Successfully sent to ${subscription.device_name}`);
 
@@ -212,8 +244,14 @@ serve(async (req) => {
         } catch (error) {
           console.error(`Failed to send to ${subscription.endpoint}:`, error);
 
-          // Se o endpoint não é mais válido (410 Gone), remover da base
-          if (error instanceof Error && error.message.includes("410")) {
+          // Se o endpoint não é mais válido (410 ou 404), remover da base
+          const is410or404 = error instanceof Error && 
+            (error.message.includes("410") || 
+             error.message.includes("404") ||
+             error.message.includes("expired") ||
+             error.message.includes("unregistered"));
+
+          if (is410or404) {
             console.log(`Removing invalid subscription: ${subscription.id}`);
             await supabase
               .from("push_subscriptions")
@@ -234,14 +272,20 @@ serve(async (req) => {
         sent: successCount,
         total: subscriptions.length,
       }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      }
     );
   } catch (error) {
     console.error("Error in send-push-notification:", error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      }
     );
   }
 });
