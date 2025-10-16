@@ -316,19 +316,37 @@ export class WebRTCCall {
   private async setupSignalingChannel(): Promise<void> {
     const channelName = `call:${this.callId}`;
     
-    this.channel = supabase
-      .channel(channelName)
-      .on('broadcast', { event: 'signal' }, async ({ payload }) => {
-        await this.handleSignal(payload);
-      })
-      .subscribe();
-
-    console.log('[WebRTC] Canal de sinalização configurado:', channelName);
+    this.channel = supabase.channel(channelName);
+    
+    // ✅ Aguardar a subscrição ser confirmada
+    await new Promise<void>((resolve, reject) => {
+      this.channel!
+        .on('broadcast', { event: 'signal' }, async ({ payload }) => {
+          await this.handleSignal(payload);
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('[WebRTC] ✅ Canal de sinalização CONECTADO:', channelName);
+            this.logEvent('SIGNALING_CHANNEL_READY', { channel: channelName });
+            resolve();
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.error('[WebRTC] ❌ Erro ao conectar canal:', status);
+            this.logEvent('SIGNALING_CHANNEL_ERROR', { status });
+            reject(new Error(`Falha ao conectar canal: ${status}`));
+          }
+        });
+      
+      // Timeout de segurança (5s)
+      setTimeout(() => reject(new Error('Timeout ao conectar canal')), 5000);
+    });
   }
 
   // Criar oferta (iniciador)
   private async createOffer(): Promise<void> {
     if (!this.peerConnection) return;
+    if (!this.channel) {
+      throw new Error('[WebRTC] Canal de sinalização não configurado');
+    }
 
     try {
       // ✅ Remover offerToReceiveAudio/Video - transceivers já definem isso
@@ -344,6 +362,10 @@ export class WebRTCCall {
         sdp: offer.sdp,
       });
 
+      this.logEvent('SIG_SENT_OFFER', { 
+        channel: `call:${this.callId}`,
+        to: 'all_subscribers'
+      });
       console.log('[WebRTC] Oferta criada e enviada');
     } catch (error) {
       console.error('[WebRTC] Erro ao criar oferta:', error);
@@ -357,11 +379,16 @@ export class WebRTCCall {
 
     // ✅ Ignorar sinais do próprio usuário
     if (signal.from === this.userId) {
-      console.log('[WebRTC] Ignorando sinal do próprio usuário');
+      this.logEvent('SIGNAL_IGNORED_SELF', { type: signal.type });
       return;
     }
 
-    console.log('[WebRTC] Sinal recebido:', signal.type, 'de:', signal.from);
+    this.logEvent('SIGNAL_RECEIVED', { 
+      type: signal.type, 
+      from: signal.from,
+      callId: signal.callId
+    });
+    console.log(`[WebRTC] 📥 Sinal recebido: ${signal.type} de: ${signal.from}`);
 
     try {
       switch (signal.type) {

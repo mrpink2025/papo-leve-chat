@@ -142,6 +142,7 @@ export const useNativeVideoCall = () => {
 
       // Iniciar chamada
       await call.start();
+      console.log('[useNativeVideoCall] ✅ Caller: Canal pronto, oferta enviada');
 
       // Enviar mensagem de sistema
       await supabase.from('messages').insert({
@@ -218,6 +219,7 @@ export const useNativeVideoCall = () => {
 
       // Iniciar chamada
       await call.start();
+      console.log('[useNativeVideoCall] ✅ Callee: Canal pronto, aguardando oferta');
 
       toast({ title: 'Chamada atendida', description: 'Conectando...' });
 
