@@ -12,13 +12,27 @@ export const useAuth = () => {
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
 
         if (event === "SIGNED_IN") {
-          navigate("/");
+          // Buscar o grupo Bem-vindos para redirecionar novos usuários
+          setTimeout(async () => {
+            const { data: welcomeGroup } = await supabase
+              .from('conversations')
+              .select('id')
+              .eq('name', 'Bem-vindos')
+              .eq('type', 'group')
+              .maybeSingle();
+            
+            if (welcomeGroup) {
+              navigate(`/chat/${welcomeGroup.id}`);
+            } else {
+              navigate("/");
+            }
+          }, 0);
         }
       }
     );
