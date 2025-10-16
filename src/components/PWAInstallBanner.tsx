@@ -7,8 +7,11 @@ import logo from "@/assets/nosso-papo-logo-transparent.png";
 
 const PWAInstallBanner = () => {
   const location = useLocation();
-  const { canInstall, promptInstall, isIOS, isInstalled } = useInstallPrompt();
+  const { canInstall, promptInstall, isIOS, isInstalled, isPWACapable } = useInstallPrompt();
   const [isDismissed, setIsDismissed] = useState(false);
+
+  // Modo de teste via query param
+  const isTestMode = new URLSearchParams(window.location.search).get("show-pwa-banner") === "true";
 
   // Verificar se o banner foi dispensado nos últimos 7 dias
   useEffect(() => {
@@ -21,7 +24,17 @@ const PWAInstallBanner = () => {
         localStorage.removeItem("pwa_banner_dismissed_until");
       }
     }
-  }, []);
+
+    // Log de debug
+    console.log("🎨 [PWA Banner] Debug:");
+    console.log("  - isInstalled:", isInstalled);
+    console.log("  - isDismissed:", isDismissed);
+    console.log("  - canInstall:", canInstall);
+    console.log("  - isIOS:", isIOS);
+    console.log("  - isPWACapable:", isPWACapable);
+    console.log("  - current route:", location.pathname);
+    console.log("  - isTestMode:", isTestMode);
+  }, [isInstalled, isDismissed, canInstall, isIOS, isPWACapable, location.pathname, isTestMode]);
 
   const handleDismiss = () => {
     setIsDismissed(true);
@@ -47,13 +60,24 @@ const PWAInstallBanner = () => {
 
   // Não mostrar o banner se:
   // 1. Já está instalado
-  // 2. Foi dispensado recentemente
+  // 2. Foi dispensado recentemente (a menos que esteja em modo teste)
   // 3. Não pode ser instalado
   // 4. Está na rota de chat (/app/chat/:id ou /chat/:id)
   const isInChatRoute = location.pathname.startsWith("/app/chat") || location.pathname.startsWith("/chat/");
   
-  if (isInstalled || isDismissed || !canInstall || isInChatRoute) {
+  // Modo teste ignora todas as restrições
+  if (isTestMode) {
+    console.log("🧪 [PWA Banner] Modo de teste ativado - exibindo banner");
+  } else if (isInstalled || isDismissed || !canInstall || isInChatRoute) {
+    console.log("🚫 [PWA Banner] Banner oculto:", {
+      isInstalled,
+      isDismissed,
+      canInstall,
+      isInChatRoute
+    });
     return null;
+  } else {
+    console.log("✅ [PWA Banner] Exibindo banner!");
   }
 
   return (

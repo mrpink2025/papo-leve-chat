@@ -9,6 +9,15 @@ const Install = () => {
   const navigate = useNavigate();
   const { isInstalled, isIOS, promptInstall, canInstall } = useInstallPrompt();
 
+  // Detectar navegador
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isChrome = /chrome/.test(userAgent) && !/edge|edg/.test(userAgent);
+  const isEdge = /edg/.test(userAgent);
+  const isSafari = /safari/.test(userAgent) && !/chrome/.test(userAgent);
+  const isFirefox = /firefox/.test(userAgent);
+  
+  const browserName = isChrome ? "Chrome" : isEdge ? "Edge" : isSafari ? "Safari" : isFirefox ? "Firefox" : "seu navegador";
+
   const handleInstall = async () => {
     const installed = await promptInstall();
     if (installed) {
@@ -55,13 +64,63 @@ const Install = () => {
               </div>
               <div>
                 <h2 className="text-xl font-semibold">Instalação Rápida</h2>
-                <p className="text-muted-foreground">Clique no botão abaixo</p>
+                <p className="text-muted-foreground">Clique no botão abaixo para instalar</p>
               </div>
             </div>
             <Button onClick={handleInstall} size="lg" className="w-full">
               <Download className="mr-2 h-5 w-5" />
               Instalar Agora
             </Button>
+          </Card>
+        )}
+
+        {!isIOS && !canInstall && (
+          <Card className="p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
+                <Smartphone className="h-6 w-6 text-yellow-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold">Instalação no {browserName}</h2>
+                <p className="text-muted-foreground">Instruções específicas para seu navegador</p>
+              </div>
+            </div>
+
+            {isChrome && (
+              <div className="space-y-3 text-sm">
+                <p>1. Clique no menu (⋮) no canto superior direito</p>
+                <p>2. Selecione "Instalar Nosso Papo" ou "Adicionar à tela inicial"</p>
+                <p>3. Confirme a instalação</p>
+              </div>
+            )}
+
+            {isEdge && (
+              <div className="space-y-3 text-sm">
+                <p>1. Clique no menu (•••) no canto superior direito</p>
+                <p>2. Selecione "Aplicativos" → "Instalar este site como um aplicativo"</p>
+                <p>3. Confirme a instalação</p>
+              </div>
+            )}
+
+            {isFirefox && (
+              <div className="bg-yellow-500/10 rounded-lg p-4">
+                <p className="text-sm">
+                  ⚠️ O Firefox desktop não suporta instalação de PWA. Tente usar Chrome, Edge ou Safari, ou acesse pelo Firefox no Android.
+                </p>
+              </div>
+            )}
+
+            {!isChrome && !isEdge && !isFirefox && !isSafari && (
+              <div className="space-y-3 text-sm">
+                <p>Procure por opções como:</p>
+                <p>• "Instalar aplicativo"</p>
+                <p>• "Adicionar à tela inicial"</p>
+                <p>• "Instalar PWA"</p>
+                <p className="text-muted-foreground mt-2">
+                  Geralmente no menu principal do navegador (⋮ ou •••)
+                </p>
+              </div>
+            )}
           </Card>
         )}
 
