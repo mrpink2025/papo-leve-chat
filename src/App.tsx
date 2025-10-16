@@ -17,6 +17,7 @@ import { useTheme } from "./hooks/useTheme";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import PWAInstallBanner from "./components/PWAInstallBanner";
+import { PushNotificationPrompt } from "./components/PushNotificationPrompt";
 
 const queryClient = new QueryClient();
 
@@ -64,7 +65,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/entrar" replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <PushNotificationPrompt />
+    </>
+  );
 };
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
