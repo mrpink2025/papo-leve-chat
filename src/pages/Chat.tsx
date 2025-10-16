@@ -3,8 +3,12 @@ import { useParams } from "react-router-dom";
 import ChatHeader from "@/components/ChatHeader";
 import MessageBubble from "@/components/MessageBubble";
 import MessageInput from "@/components/MessageInput";
+import TypingIndicator from "@/components/TypingIndicator";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessages } from "@/hooks/useMessages";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import { useMessageStatus } from "@/hooks/useMessageStatus";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -77,6 +81,9 @@ const Chat = () => {
   });
 
   const { messages, sendMessage } = useMessages(id, user?.id);
+  const { typingUsers, setTyping } = useTypingIndicator(id, user?.id);
+  const { markAsRead } = useMessageStatus(id, user?.id);
+  useNotifications(user?.id);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -84,7 +91,15 @@ const Chat = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+
+    // Mark latest message as read when messages change
+    if (messages.length > 0 && user?.id) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.sender_id !== user.id) {
+        markAsRead(lastMessage.id);
+      }
+    }
+  }, [messages, user?.id, markAsRead]);
 
   if (!conversation) {
     return (
@@ -122,19 +137,54 @@ const Chat = () => {
       />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-chat-pattern">
-        {messages.map((message) => (
-          <MessageBubble
-            key={message.id}
-            content={message.content}
-            timestamp={new Date(message.created_at)}
-            isSent={message.sender_id === user?.id}
-            isRead={false}
-          />
-        ))}
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            <p>Nenhuma mensagem ainda. Comece a conversa!</p>
+          </div>
+        ) : (
+          messages.map((message) => {
+            // Check if it's an image message
+            const isImage = message.content.startsWith("[IMAGE]");
+            const imageUrl = isImage ? message.content.replace("[IMAGE]", "") : null;
+
+            return (
+              <div key={message.id}>
+                {isImage && imageUrl ? (
+                  <div
+                    className={`flex ${
+                      message.sender_id === user?.id ? "justify-end" : "justify-start"
+                    } mb-2 animate-slide-in`}
+                  >
+                    <div className="max-w-[75%]">
+                      <img
+                        src={imageUrl}
+                        alt="Imagem enviada"
+                        className="rounded-lg shadow-message max-h-96 cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => window.open(imageUrl, "_blank")}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <MessageBubble
+                    content={message.content}
+                    timestamp={new Date(message.created_at)}
+                    isSent={message.sender_id === user?.id}
+                    isRead={false}
+                  />
+                )}
+              </div>
+            );
+          })
+        )}
+        <TypingIndicator users={typingUsers} />
         <div ref={messagesEndRef} />
       </div>
 
-      <MessageInput onSendMessage={handleSendMessage} />
+      <MessageInput
+        conversationId={id!}
+        onSendMessage={handleSendMessage}
+        onTyping={setTyping}
+      />
     </div>
   );
 };
