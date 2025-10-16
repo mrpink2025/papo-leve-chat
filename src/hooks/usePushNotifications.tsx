@@ -72,8 +72,8 @@ export const usePushNotifications = () => {
     return outputArray;
   };
 
-  // Solicitar permissão e inscrever para notificações
-  const requestPermission = useCallback(async (): Promise<boolean> => {
+  // Solicitar permissão e inscrever para notificações (com retry automático)
+  const requestPermission = useCallback(async (attempt = 1, maxRetries = 3): Promise<boolean> => {
     if (!('Notification' in window)) {
       toast({
         title: 'Não suportado',
@@ -152,7 +152,16 @@ export const usePushNotifications = () => {
 
       return true;
     } catch (error) {
-      console.error('Erro ao solicitar permissão:', error);
+      console.error(`Erro ao solicitar permissão (tentativa ${attempt}/${maxRetries}):`, error);
+      
+      // ✅ Retry com exponential backoff
+      if (attempt < maxRetries) {
+        const delay = 1000 * attempt; // 1s, 2s, 3s
+        console.log(`Tentando novamente em ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return requestPermission(attempt + 1, maxRetries);
+      }
+      
       toast({
         title: 'Erro',
         description: 'Não foi possível ativar as notificações. Tente novamente.',

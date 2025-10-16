@@ -495,33 +495,61 @@ export class WebRTCCall {
   end(): void {
     console.log('[WebRTC] Encerrando chamada');
 
-    // Parar monitor de qualidade
-    if (this.connectionQualityInterval) {
-      clearInterval(this.connectionQualityInterval);
-    }
-
-    // Parar tracks locais
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
-      this.localStream = null;
-    }
-
-    // Fechar peer connection
-    if (this.peerConnection) {
-      this.peerConnection.close();
-      this.peerConnection = null;
-    }
-
-    // Desinscrever do canal
-    if (this.channel) {
-      this.channel.unsubscribe();
-      this.channel = null;
-    }
-
-    this.updateStatus('ended');
-
-    // Notificar outros participantes
+    // ✅ 1. PRIMEIRO enviar sinal de encerramento (antes de fechar canal)
     this.sendSignal({ type: 'end-call' });
+    
+    // ✅ 2. Atualizar banco de dados imediatamente
+    this.updateCallStatusInDatabase('ended');
+
+    // ✅ 3. Aguardar um pouco para sinal ser entregue (100ms)
+    setTimeout(() => {
+      // Parar monitor de qualidade
+      if (this.connectionQualityInterval) {
+        clearInterval(this.connectionQualityInterval);
+      }
+
+      // Parar tracks locais
+      if (this.localStream) {
+        this.localStream.getTracks().forEach(track => track.stop());
+        this.localStream = null;
+      }
+
+      // Fechar peer connection
+      if (this.peerConnection) {
+        this.peerConnection.close();
+        this.peerConnection = null;
+      }
+
+      // Desinscrever do canal (por último)
+      if (this.channel) {
+        this.channel.unsubscribe();
+        this.channel = null;
+      }
+
+      this.updateStatus('ended');
+    }, 100);
+  }
+
+  // Atualizar status da chamada no banco de dados
+  private async updateCallStatusInDatabase(status: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('call_notifications')
+        .update({ 
+          status, 
+          ended_at: new Date().toISOString() 
+        })
+        .eq('conversation_id', this.conversationId)
+        .in('status', ['ringing', 'active']);
+      
+      if (error) {
+        console.error('[WebRTC] Erro ao atualizar status no banco:', error);
+      } else {
+        console.log('[WebRTC] Status atualizado no banco:', status);
+      }
+    } catch (error) {
+      console.error('[WebRTC] Erro ao atualizar status no banco:', error);
+    }
   }
 
   // Atualizar status

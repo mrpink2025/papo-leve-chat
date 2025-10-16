@@ -4,21 +4,37 @@ import App from "./App.tsx";
 import "./index.css";
 import "./i18n/config";
 
-// Force Service Worker update - remove after 1 week (2025-10-23)
+// ✅ Registrar Service Worker para Push Notifications
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(registrations => {
-    for (let registration of registrations) {
-      registration.unregister();
-    }
-  });
-  caches.keys().then(cacheNames => {
-    return Promise.all(
-      cacheNames.map(cacheName => {
-        if (cacheName.includes('workbox') || cacheName.includes('np-')) {
-          return caches.delete(cacheName);
+  window.addEventListener('load', async () => {
+    try {
+      // Registrar sw-push.js para notificações
+      const registration = await navigator.serviceWorker.register('/sw-push.js', {
+        scope: '/'
+      });
+      
+      console.log('✅ Service Worker registrado:', registration);
+      
+      // Forçar update se houver nova versão
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
+              console.log('🔄 Service Worker atualizado, recarregando...');
+              window.location.reload();
+            }
+          });
         }
-      })
-    );
+      });
+
+      // Verificar atualizações a cada 60 segundos
+      setInterval(() => {
+        registration.update();
+      }, 60000);
+    } catch (error) {
+      console.error('❌ Erro ao registrar Service Worker:', error);
+    }
   });
 }
 

@@ -98,7 +98,7 @@ export const NotificationDebugPanel = () => {
           </div>
 
           {permission !== 'granted' && (
-            <Button onClick={requestPermission} size="sm" className="w-full mt-2">
+            <Button onClick={() => requestPermission()} size="sm" className="w-full mt-2">
               Solicitar Permissão
             </Button>
           )}

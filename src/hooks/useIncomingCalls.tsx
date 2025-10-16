@@ -164,11 +164,11 @@ export const useIncomingCalls = (userId: string | undefined) => {
   };
 };
 
-// FASE 4: Variáveis globais para controlar o ringtone com Web Audio API
+// FASE 4: Variáveis globais para controlar o ringtone com melodia harmoniosa
 let audioContext: AudioContext | null = null;
 let oscillator: OscillatorNode | null = null;
 let gainNode: GainNode | null = null;
-let ringInterval: NodeJS.Timeout | null = null;
+let melodyInterval: NodeJS.Timeout | null = null;
 
 function playRingtone() {
   try {
@@ -177,45 +177,68 @@ function playRingtone() {
       return;
     }
 
-    console.log('[useIncomingCalls] Iniciando ringtone com Web Audio API');
+    console.log('[useIncomingCalls] Iniciando ringtone harmonioso');
     
     audioContext = new AudioContext();
     gainNode = audioContext.createGain();
-    gainNode.gain.value = 0.3; // 30% volume
+    gainNode.gain.value = 0; // Começar em silêncio
     gainNode.connect(audioContext.destination);
     
-    // Padrão de toque: 1s on, 0.5s off
-    let isPlaying = false;
+    // ✅ Melodia harmoniosa: C5-E5-G5-C6 (acorde de Dó maior)
+    const melody = [
+      { freq: 523.25, duration: 0.15 }, // C5
+      { freq: 659.25, duration: 0.15 }, // E5
+      { freq: 783.99, duration: 0.15 }, // G5
+      { freq: 1046.50, duration: 0.3 }, // C6 (mais longo)
+    ];
     
-    const playTone = () => {
-      if (isPlaying) return;
+    let noteIndex = 0;
+    
+    const playNote = () => {
+      if (!audioContext || !gainNode) return;
       
-      isPlaying = true;
-      oscillator = audioContext!.createOscillator();
-      oscillator.type = 'sine';
-      oscillator.frequency.value = 440; // Nota Lá (A4)
-      oscillator.connect(gainNode!);
-      oscillator.start(0);
+      const note = melody[noteIndex % melody.length];
       
-      setTimeout(() => {
-        if (oscillator) {
+      // Criar novo oscilador para a nota
+      if (oscillator) {
+        try {
           oscillator.stop();
           oscillator.disconnect();
-          oscillator = null;
+        } catch (e) {
+          // Ignorar erro se já foi parado
         }
-        isPlaying = false;
-      }, 1000); // Toca por 1 segundo
+      }
+      
+      oscillator = audioContext.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = note.freq;
+      
+      // Envelope de volume (fade in/out suave)
+      const now = audioContext.currentTime;
+      gainNode.gain.cancelScheduledValues(now);
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(0.3, now + 0.05); // Fade in 50ms
+      gainNode.gain.linearRampToValueAtTime(0, now + note.duration); // Fade out
+      
+      oscillator.connect(gainNode);
+      oscillator.start(now);
+      oscillator.stop(now + note.duration);
+      
+      noteIndex++;
     };
     
-    // Iniciar primeiro toque
-    playTone();
+    // Tocar primeira nota
+    playNote();
     
-    // Continuar tocando em intervalos (1s on, 0.5s off = 1.5s total)
-    ringInterval = setInterval(() => {
-      if (audioContext) {
-        playTone();
+    // Continuar tocando melodia
+    melodyInterval = setInterval(() => {
+      if (audioContext && gainNode) {
+        playNote();
+      } else if (melodyInterval) {
+        clearInterval(melodyInterval);
+        melodyInterval = null;
       }
-    }, 1500);
+    }, 200); // Próxima nota após 200ms
     
   } catch (error) {
     console.warn('[useIncomingCalls] Erro ao tocar ringtone:', error);
@@ -225,9 +248,10 @@ function playRingtone() {
 function stopRingtone() {
   console.log('[useIncomingCalls] Parando ringtone');
   
-  if (ringInterval) {
-    clearInterval(ringInterval);
-    ringInterval = null;
+  // Parar intervalo da melodia
+  if (melodyInterval) {
+    clearInterval(melodyInterval);
+    melodyInterval = null;
   }
   
   if (oscillator) {
