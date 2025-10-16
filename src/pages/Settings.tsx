@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { ImageCropDialog } from "@/components/ImageCropDialog";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -44,6 +45,9 @@ const Settings = () => {
     phone: "",
   });
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (profile) {
@@ -79,7 +83,7 @@ const Settings = () => {
     updateProfile.mutate(formData);
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user?.id) return;
 
@@ -96,6 +100,22 @@ const Settings = () => {
       return;
     }
 
+    // Criar preview da imagem para crop
+    const reader = new FileReader();
+    reader.addEventListener('load', () => {
+      setImageToCrop(reader.result as string);
+      setSelectedFile(file);
+      setCropDialogOpen(true);
+    });
+    reader.readAsDataURL(file);
+
+    // Reset do input
+    e.target.value = "";
+  };
+
+  const handleCroppedImage = async (croppedBlob: Blob) => {
+    if (!user?.id) return;
+
     setUploadingAvatar(true);
 
     try {
@@ -110,15 +130,14 @@ const Settings = () => {
       }
 
       // Gerar nome único para o arquivo
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const fileName = `${crypto.randomUUID()}.jpg`;
       const filePath = `${user.id}/${fileName}`;
 
-      // Upload do novo avatar
+      // Upload do novo avatar recortado
       const { error: uploadError } = await supabase.storage
         .from("avatars")
-        .upload(filePath, file, {
-          contentType: file.type,
+        .upload(filePath, croppedBlob, {
+          contentType: 'image/jpeg',
           cacheControl: '3600',
           upsert: false
         });
@@ -151,8 +170,8 @@ const Settings = () => {
       toast.error(`Erro ao fazer upload: ${error.message || "Tente novamente"}`);
     } finally {
       setUploadingAvatar(false);
-      // Reset do input
-      e.target.value = "";
+      setImageToCrop(null);
+      setSelectedFile(null);
     }
   };
 
@@ -185,7 +204,7 @@ const Settings = () => {
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={handleAvatarUpload}
+                  onChange={handleAvatarSelect}
                   disabled={uploadingAvatar}
                 />
               </label>
@@ -288,6 +307,15 @@ const Settings = () => {
           </div>
         </div>
       </div>
+
+      {imageToCrop && (
+        <ImageCropDialog
+          open={cropDialogOpen}
+          onOpenChange={setCropDialogOpen}
+          imageSrc={imageToCrop}
+          onCropComplete={handleCroppedImage}
+        />
+      )}
     </div>
   );
 };
