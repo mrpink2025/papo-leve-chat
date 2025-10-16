@@ -229,6 +229,111 @@ export type Database = {
         }
         Relationships: []
       }
+      group_call_participants: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_host: boolean | null
+          joined_at: string | null
+          left_at: string | null
+          session_id: string
+          status: string
+          stream_config: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_host?: boolean | null
+          joined_at?: string | null
+          left_at?: string | null
+          session_id: string
+          status?: string
+          stream_config?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_host?: boolean | null
+          joined_at?: string | null
+          left_at?: string | null
+          session_id?: string
+          status?: string
+          stream_config?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_call_participants_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "group_call_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_call_participants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_call_sessions: {
+        Row: {
+          call_type: string
+          conversation_id: string
+          created_at: string | null
+          created_by: string
+          ended_at: string | null
+          id: string
+          started_at: string
+          state: string
+          updated_at: string | null
+        }
+        Insert: {
+          call_type: string
+          conversation_id: string
+          created_at?: string | null
+          created_by: string
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          state?: string
+          updated_at?: string | null
+        }
+        Update: {
+          call_type?: string
+          conversation_id?: string
+          created_at?: string | null
+          created_by?: string
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          state?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_call_sessions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_call_sessions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_reactions: {
         Row: {
           created_at: string

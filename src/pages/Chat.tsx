@@ -12,11 +12,14 @@ import SearchMessages from "@/components/SearchMessages";
 import { NativeCallDialog } from "@/components/NativeCallDialog";
 import { IncomingNativeCallDialog } from "@/components/IncomingNativeCallDialog";
 import ProfileViewDialog from "@/components/ProfileViewDialog";
+import { GroupCallBanner } from "@/components/GroupCallBanner";
+import { GroupCallDialog } from "@/components/GroupCallDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessages } from "@/hooks/useMessages";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { useMessageActions } from "@/hooks/useMessageActions";
 import { useNativeVideoCall } from "@/hooks/useNativeVideoCall";
+import { useGroupVideoCall } from "@/hooks/useGroupVideoCall";
 import { useIncomingCalls } from "@/hooks/useIncomingCalls";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useMessageStatus } from "@/hooks/useMessageStatus";
@@ -63,6 +66,27 @@ const Chat = () => {
   
   // Sincronização real-time centralizada
   useRealtimeSync(user?.id);
+
+  // Query para chamada em grupo ativa
+  const { data: activeGroupCall } = useQuery({
+    queryKey: ['active-group-call', id],
+    queryFn: async () => {
+      if (!id) return null;
+      
+      const { data } = await supabase
+        .from('group_call_sessions')
+        .select('id, call_type, state')
+        .eq('conversation_id', id)
+        .in('state', ['DIALING', 'ACTIVE', 'COOLDOWN'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      return data;
+    },
+    enabled: !!id,
+    refetchInterval: 5000,
+  });
 
   const { data: conversation } = useQuery<ConversationData>({
     queryKey: ["conversation", id],
@@ -137,6 +161,17 @@ const Chat = () => {
     switchCamera,
     formatDuration 
   } = useNativeVideoCall();
+  
+  const {
+    callState: groupCallState,
+    startGroupCall,
+    joinGroupCall,
+    endCall: endGroupCall,
+    toggleVideo: toggleGroupVideo,
+    toggleAudio: toggleGroupAudio,
+    switchCamera: switchGroupCamera,
+  } = useGroupVideoCall();
+  
   // Listener global agora está no App.tsx via GlobalIncomingCallOverlay
   const { trackEvent } = useAnalytics();
   const { markAsRead, getMessageStatus } = useMessageStatus(id, user?.id);
@@ -478,6 +513,16 @@ const Chat = () => {
 
   return (
     <div className="flex flex-col h-screen bg-background">
+      {/* Banner de chamada em grupo ativa */}
+      {conversation?.type === "group" && activeGroupCall && (
+        <GroupCallBanner 
+          conversationId={id!}
+          onJoinCall={(sessionId, callType) => {
+            joinGroupCall(sessionId, id!, callType);
+          }}
+        />
+      )}
+      
       <ChatHeader
         name={displayName}
         avatar={displayAvatar}
@@ -539,14 +584,29 @@ const Chat = () => {
             return;
           }
 
-          startCall(
-            id!,
-            'video',
-            {
-              name: conversation.name || conversation.other_participant?.full_name || conversation.other_participant?.username || 'Usuário',
-              avatar: conversation.avatar_url || conversation.other_participant?.avatar_url,
+          // Para grupos: iniciar chamada em grupo
+          if (conversation.type === "group") {
+            const { data: participants } = await supabase
+              .from('conversation_participants')
+              .select('user_id')
+              .eq('conversation_id', id!)
+              .neq('user_id', user.id);
+            
+            if (participants) {
+              const participantIds = participants.map(p => p.user_id);
+              await startGroupCall(id!, 'video', participantIds);
             }
-          );
+          } else {
+            // Para conversa direta: chamada 1-on-1
+            startCall(
+              id!,
+              'video',
+              {
+                name: conversation.name || conversation.other_participant?.full_name || conversation.other_participant?.username || 'Usuário',
+                avatar: conversation.avatar_url || conversation.other_participant?.avatar_url,
+              }
+            );
+          }
           trackEvent({ eventType: 'video_call_started', eventData: { conversationId: id } });
         }}
         onAudioCall={async () => {
@@ -601,14 +661,29 @@ const Chat = () => {
             return;
           }
 
-          startCall(
-            id!,
-            'audio',
-            {
-              name: conversation.name || conversation.other_participant?.full_name || conversation.other_participant?.username || 'Usuário',
-              avatar: conversation.avatar_url || conversation.other_participant?.avatar_url,
+          // Para grupos: iniciar chamada em grupo
+          if (conversation.type === "group") {
+            const { data: participants } = await supabase
+              .from('conversation_participants')
+              .select('user_id')
+              .eq('conversation_id', id!)
+              .neq('user_id', user.id);
+            
+            if (participants) {
+              const participantIds = participants.map(p => p.user_id);
+              await startGroupCall(id!, 'audio', participantIds);
             }
-          );
+          } else {
+            // Para conversa direta: chamada 1-on-1
+            startCall(
+              id!,
+              'audio',
+              {
+                name: conversation.name || conversation.other_participant?.full_name || conversation.other_participant?.username || 'Usuário',
+                avatar: conversation.avatar_url || conversation.other_participant?.avatar_url,
+              }
+            );
+          }
           trackEvent({ eventType: 'audio_call_started', eventData: { conversationId: id } });
         }}
         onSearch={() => setShowSearch(!showSearch)}

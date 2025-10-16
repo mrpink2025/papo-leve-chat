@@ -104,6 +104,30 @@ export const useIncomingCalls = (userId: string | undefined) => {
           }
         }
       )
+      // Listener para convites de chamada em grupo
+      .on('broadcast', { event: 'group-call-invite' }, (payload) => {
+        console.log('[useIncomingCalls] Convite de chamada em grupo recebido:', payload);
+        
+        const { sessionId, conversationId, callType, groupName, invitedUserId } = payload.payload;
+        
+        if (invitedUserId !== userId) return;
+        
+        toast({
+          title: `📞 Chamada em grupo: ${groupName}`,
+          description: `Chamada de ${callType === 'video' ? 'vídeo' : 'áudio'}`,
+        });
+        
+        // Timeout de 45s
+        const timeout = setTimeout(async () => {
+          await supabase
+            .from('group_call_participants')
+            .update({ status: 'TIMEOUT' })
+            .eq('session_id', sessionId)
+            .eq('user_id', userId);
+        }, 45000);
+        
+        setMissedTimeout(timeout);
+      })
       // ✅ FASE 3: Fallback via broadcast (notificação instantânea) - canal por usuário
       .on('broadcast', { event: 'incoming-call' }, (payload) => {
         console.log('[useIncomingCalls] 🔔 Chamada recebida via broadcast:', payload);
