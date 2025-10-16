@@ -689,7 +689,7 @@ const Chat = () => {
         onSearch={() => setShowSearch(!showSearch)}
       />
 
-      {/* Chamada ativa (local na página do chat) */}
+      {/* Chamada ativa 1-on-1 */}
       {callState.isInCall && (
         <NativeCallDialog
           callState={callState}
@@ -698,6 +698,17 @@ const Chat = () => {
           onToggleAudio={toggleAudio}
           onSwitchCamera={switchCamera}
           formatDuration={formatDuration}
+        />
+      )}
+      
+      {/* Chamada em grupo ativa */}
+      {groupCallState.isInCall && (
+        <GroupCallDialog
+          callState={groupCallState}
+          onEndCall={endGroupCall}
+          onToggleVideo={toggleGroupVideo}
+          onToggleAudio={toggleGroupAudio}
+          onSwitchCamera={switchGroupCamera}
         />
       )}
       
