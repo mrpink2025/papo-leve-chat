@@ -15,6 +15,9 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
 ];
 
 export class WebRTCCall {
@@ -49,6 +52,7 @@ export class WebRTCCall {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 3;
   private connectionQualityInterval: NodeJS.Timeout | null = null;
+  private offerTimer: NodeJS.Timeout | null = null;
   
   // Telemetria
   private eventLog: Array<{ timestamp: number; event: string; data?: any }> = [];
@@ -207,10 +211,18 @@ export class WebRTCCall {
     };
 
     // Monitorar ICE candidates
-    this.peerConnection.onicecandidate = (event) => {
+    this.peerConnection.onicecandidate = async (event) => {
       if (event.candidate) {
-        this.logEvent('ICE_CANDIDATE_GENERATED', { candidate: event.candidate.candidate });
-        this.sendSignal({
+        const c = event.candidate.candidate;
+        const typeMatch = c.match(/ typ (\w+) /);
+        const protoMatch = c.match(/ (udp|tcp)/);
+        this.logEvent('ICE_CANDIDATE_GENERATED', { 
+          type: typeMatch?.[1], 
+          protocol: protoMatch?.[1] 
+        });
+        console.log(`[WebRTC] 🧊 ICE candidate gerado: ${typeMatch?.[1]} (${protoMatch?.[1]})`);
+        
+        await this.sendSignal({
           type: 'ice-candidate',
           candidate: event.candidate.toJSON(),
         });
@@ -225,7 +237,7 @@ export class WebRTCCall {
     };
 
     // Monitorar estado da conexão
-    this.peerConnection.onconnectionstatechange = () => {
+    this.peerConnection.onconnectionstatechange = async () => {
       const state = this.peerConnection?.connectionState;
       this.logEvent('PEERCONNECTION_STATE', { state });
       console.log('[WebRTC] Connection state:', state);
@@ -235,6 +247,33 @@ export class WebRTCCall {
           this.logEvent('CALL_CONNECTED');
           this.updateStatus('connected');
           this.reconnectAttempts = 0;
+          
+          // ✅ Limpar timer de oferta
+          if (this.offerTimer) {
+            clearTimeout(this.offerTimer);
+            this.offerTimer = null;
+          }
+          
+          // ✅ Diagnosticar tipo de candidate usado
+          try {
+            const stats = await this.peerConnection!.getStats();
+            stats.forEach((report) => {
+              if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                this.logEvent('ICE_SELECTED_PAIR', {
+                  local: report.localCandidateId,
+                  remote: report.remoteCandidateId
+                });
+              }
+              if (report.type === 'local-candidate' && report.candidateType) {
+                console.log(`[WebRTC] 🎯 Local candidate: ${report.candidateType}`);
+              }
+              if (report.type === 'remote-candidate' && report.candidateType) {
+                console.log(`[WebRTC] 🎯 Remote candidate: ${report.candidateType}`);
+              }
+            });
+          } catch (e) {
+            console.error('[WebRTC] Erro ao obter stats:', e);
+          }
           break;
         case 'disconnected':
           this.handleDisconnection();
@@ -285,7 +324,7 @@ export class WebRTCCall {
         // ✅ Logar ordem dos transceivers após setLocalDescription
         this.logTransceiverOrder('after_setLocalDescription');
         
-        this.sendSignal({
+        await this.sendSignal({
           type: 'offer',
           sdp: this.peerConnection!.localDescription?.sdp,
         });
@@ -316,7 +355,18 @@ export class WebRTCCall {
   private async setupSignalingChannel(): Promise<void> {
     const channelName = `call:${this.callId}`;
     
-    this.channel = supabase.channel(channelName);
+    // ✅ Limpar canal existente antes de criar novo
+    if (this.channel) {
+      await supabase.removeChannel(this.channel);
+      this.channel = null;
+    }
+    
+    // ✅ Criar canal com ACK habilitado
+    this.channel = supabase.channel(channelName, { 
+      config: { 
+        broadcast: { self: false, ack: true } 
+      } 
+    });
     
     // ✅ Aguardar a subscrição ser confirmada
     await new Promise<void>((resolve, reject) => {
@@ -357,7 +407,7 @@ export class WebRTCCall {
       // ✅ Logar ordem dos transceivers
       this.logTransceiverOrder('after_createOffer');
 
-      this.sendSignal({
+      await this.sendSignal({
         type: 'offer',
         sdp: offer.sdp,
       });
@@ -367,6 +417,22 @@ export class WebRTCCall {
         to: 'all_subscribers'
       });
       console.log('[WebRTC] Oferta criada e enviada');
+      
+      // ✅ Watchdog: reenviar oferta se não receber answer em 7s
+      if (this.offerTimer) clearTimeout(this.offerTimer);
+      this.offerTimer = setTimeout(async () => {
+        if (this.peerConnection && this.peerConnection.signalingState !== 'stable') {
+          this.logEvent('OFFER_TIMEOUT_RETRY', { signalingState: this.peerConnection.signalingState });
+          console.log('[WebRTC] ⚠️ Timeout aguardando answer, reenviando oferta...');
+          try {
+            const retryOffer = await this.peerConnection.createOffer();
+            await this.peerConnection.setLocalDescription(retryOffer);
+            await this.sendSignal({ type: 'offer', sdp: retryOffer.sdp });
+          } catch (e) {
+            console.error('[WebRTC] Erro ao reenviar offer:', e);
+          }
+        }
+      }, 7000);
     } catch (error) {
       console.error('[WebRTC] Erro ao criar oferta:', error);
       throw error;
@@ -449,7 +515,7 @@ export class WebRTCCall {
     // ✅ Logar ordem após setLocalDescription da resposta
     this.logTransceiverOrder('after_setLocalDescription_answer');
 
-    this.sendSignal({
+    await this.sendSignal({
       type: 'answer',
       sdp: answer.sdp,
     });
@@ -464,6 +530,12 @@ export class WebRTCCall {
 
     this.logEvent('SIG_RCVD_ANSWER', { from: signal.from });
     this.updateStatus('connecting');
+    
+    // ✅ Limpar timer de oferta ao receber answer
+    if (this.offerTimer) {
+      clearTimeout(this.offerTimer);
+      this.offerTimer = null;
+    }
 
     await this.peerConnection.setRemoteDescription(
       new RTCSessionDescription({ type: 'answer', sdp: signal.sdp })
@@ -487,9 +559,17 @@ export class WebRTCCall {
         return;
       }
 
-      await this.peerConnection.addIceCandidate(
-        new RTCIceCandidate(signal.candidate)
-      );
+      const candidate = new RTCIceCandidate(signal.candidate);
+      const c = signal.candidate.candidate;
+      const typeMatch = c?.match(/ typ (\w+) /);
+      const protoMatch = c?.match(/ (udp|tcp)/);
+      this.logEvent('ICE_CANDIDATE_RECEIVED', { 
+        type: typeMatch?.[1], 
+        protocol: protoMatch?.[1] 
+      });
+      console.log(`[WebRTC] 🧊 ICE candidate recebido: ${typeMatch?.[1]} (${protoMatch?.[1]})`);
+      
+      await this.peerConnection.addIceCandidate(candidate);
     } catch (error) {
       console.error('[WebRTC] Erro ao adicionar ICE candidate:', error);
     }
@@ -512,11 +592,11 @@ export class WebRTCCall {
     this.pendingIceCandidates = [];
   }
 
-  // Enviar sinal via Supabase Realtime
-  private sendSignal(signal: any): void {
+  // Enviar sinal via Supabase Realtime com retry
+  private async sendSignal(signal: any): Promise<void> {
     if (!this.channel) return;
 
-    this.channel.send({
+    const payload = {
       type: 'broadcast',
       event: 'signal',
       payload: {
@@ -524,7 +604,29 @@ export class WebRTCCall {
         from: this.userId,
         callId: this.callId,
       },
-    });
+    };
+
+    const maxRetries = 3;
+    let attempt = 0;
+    
+    while (attempt < maxRetries) {
+      const status = await this.channel.send(payload);
+      this.logEvent('SIGNAL_SENT_ATTEMPT', { 
+        signalType: signal.type, 
+        attempt: attempt + 1, 
+        status 
+      });
+      
+      if (status === 'ok') {
+        console.log(`[WebRTC] ✅ Sinal enviado: ${signal.type}`);
+        return;
+      }
+      
+      await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
+      attempt++;
+    }
+    
+    console.error('[WebRTC] ❌ Falha ao enviar sinal após retries:', signal.type);
   }
 
   // Alternar entre áudio e vídeo
@@ -712,6 +814,12 @@ export class WebRTCCall {
   end(): void {
     this.logEvent('CALL_ENDED_REASON', { reason: 'user_hangup' });
     console.log('[WebRTC] Encerrando chamada');
+
+    // ✅ Limpar timers
+    if (this.offerTimer) {
+      clearTimeout(this.offerTimer);
+      this.offerTimer = null;
+    }
 
     // ✅ 1. PRIMEIRO enviar sinal de encerramento (antes de fechar canal)
     this.sendSignal({ type: 'end-call' });
