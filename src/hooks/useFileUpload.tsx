@@ -52,9 +52,20 @@ export const useFileUpload = () => {
         return null;
       }
 
+      // Get current user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Erro",
+          description: "Usuário não autenticado",
+          variant: "destructive",
+        });
+        return null;
+      }
+
       const bucket = getBucketForType(type);
       const fileExt = file.name.split(".").pop();
-      const fileName = `${conversationId}/${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
       // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
