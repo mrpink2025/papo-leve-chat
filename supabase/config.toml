@@ -1,1 +1,10 @@
 project_id = "valazbmgqazykdzcwfcs"
+
+[functions.send-push-notification]
+verify_jwt = false
+
+[functions.create-direct-conversation]
+verify_jwt = true
+
+[functions.cleanup-group-calls]
+verify_jwt = false

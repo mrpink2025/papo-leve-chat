@@ -25,6 +25,12 @@ interface PushPayload {
 interface NotificationRequest {
   recipientId: string;
   payload: PushPayload;
+  category?: string;
+  conversationId?: string;
+  sessionId?: string;
+  groupName?: string;
+  hostName?: string;
+  callType?: string;
 }
 
 serve(async (req) => {
@@ -61,7 +67,17 @@ serve(async (req) => {
     console.log('[Push] 🔔 Processando requisição de notificação');
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { recipientId, payload }: NotificationRequest = await req.json();
+    const request: NotificationRequest = await req.json();
+    const { 
+      recipientId, 
+      payload, 
+      category, 
+      conversationId, 
+      sessionId, 
+      groupName, 
+      hostName, 
+      callType 
+    } = request;
 
     if (!recipientId || !payload) {
       return new Response(
@@ -71,6 +87,31 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" } 
         }
       );
+    }
+    
+    // Processar notificações de chamada em grupo
+    if (category === 'group-call' && sessionId && groupName) {
+      console.log(`[Push] 📞 Notificação de chamada em grupo: ${groupName}`);
+      
+      const groupCallPayload: PushPayload = {
+        title: `📞 Chamada em ${groupName}`,
+        body: `${hostName || 'Alguém'} está chamando o grupo`,
+        icon: payload.icon || '/app-icon-192.png',
+        badge: '/app-icon-192.png',
+        tag: `group-call-${sessionId}`,
+        data: {
+          url: `/chat/${conversationId}?session=${sessionId}`,
+          sessionId,
+          conversationId,
+          category: 'group-call',
+          callType: callType || 'video',
+        },
+        requireInteraction: true,
+        silent: false,
+      };
+      
+      // Substituir payload original pelo de chamada em grupo
+      Object.assign(payload, groupCallPayload);
     }
 
     console.log(`[Push] 📱 Buscando subscriptions para: ${recipientId}`);
