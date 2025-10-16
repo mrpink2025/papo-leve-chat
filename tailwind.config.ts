@@ -51,6 +51,7 @@ export default {
         chat: {
           header: "hsl(var(--chat-header))",
           "header-foreground": "hsl(var(--chat-header-foreground))",
+          background: "hsl(var(--chat-background))",
         },
         message: {
           sent: "hsl(var(--message-sent))",

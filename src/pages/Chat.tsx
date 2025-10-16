@@ -93,7 +93,7 @@ const Chat = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="flex flex-col h-screen bg-background">
       <ChatHeader
         name={chat.name}
         avatar={chat.avatar}
@@ -101,7 +101,13 @@ const Chat = () => {
         lastSeen={chat.lastSeen}
       />
 
-      <div className="flex-1 overflow-y-auto p-4 bg-accent/20">
+      <div 
+        className="flex-1 overflow-y-auto p-4 space-y-2 bg-chat-background"
+        style={{
+          backgroundImage: `radial-gradient(circle at 20% 50%, hsl(var(--primary) / 0.03) 0%, transparent 50%),
+                           radial-gradient(circle at 80% 80%, hsl(var(--primary) / 0.02) 0%, transparent 50%)`,
+        }}
+      >
         {messages.map((message) => (
           <MessageBubble key={message.id} {...message} />
         ))}

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import ChatListItem from "@/components/ChatListItem";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, MessageSquarePlus, MoreVertical } from "lucide-react";
+import { Search, MessageCircle, MoreVertical } from "lucide-react";
 
 const mockChats = [
   {
@@ -62,38 +62,32 @@ const Index = () => {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="bg-primary text-primary-foreground px-4 py-4 shadow-chat">
+    <div className="flex flex-col h-screen bg-background">
+      {/* Header */}
+      <div className="bg-chat-header text-chat-header-foreground p-4 shadow-chat border-b border-border/50">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold">Mensagens</h1>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-primary-foreground hover:bg-primary-foreground/10"
-            >
-              <MessageSquarePlus size={20} />
+          <h1 className="text-2xl font-bold">Conversas</h1>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="icon" className="text-chat-header-foreground hover:bg-secondary/50">
+              <MessageCircle size={20} />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-primary-foreground hover:bg-primary-foreground/10"
-            >
+            <Button variant="ghost" size="icon" className="text-chat-header-foreground hover:bg-secondary/50">
               <MoreVertical size={20} />
             </Button>
           </div>
         </div>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
           <Input
+            placeholder="Buscar conversa..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Pesquisar conversas..."
-            className="pl-10 bg-primary-foreground/10 border-0 text-primary-foreground placeholder:text-primary-foreground/60 focus-visible:ring-1 focus-visible:ring-primary-foreground/30"
+            className="pl-10 bg-secondary border-border/50 text-foreground placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-primary"
           />
         </div>
-      </header>
+      </div>
 
+      {/* Chat List */}
       <div className="flex-1 overflow-y-auto">
         {filteredChats.length > 0 ? (
           filteredChats.map((chat) => (
@@ -104,8 +98,9 @@ const Index = () => {
             />
           ))
         ) : (
-          <div className="flex items-center justify-center h-64">
-            <p className="text-muted-foreground">Nenhuma conversa encontrada</p>
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+            <MessageCircle size={48} className="mb-2 opacity-30" />
+            <p>Nenhuma conversa encontrada</p>
           </div>
         )}
       </div>
