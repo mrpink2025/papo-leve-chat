@@ -1,41 +1,64 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, MoreVertical, LogOut } from "lucide-react";
+import { Search, Settings, Archive, LogOut } from "lucide-react";
 import ChatListItem from "@/components/ChatListItem";
+import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversations";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { data: conversations = [], isLoading } = useConversations(user?.id);
+  const { data: conversations = [], isLoading } = useConversations(user?.id, false);
+  const { data: archivedConversations = [] } = useConversations(user?.id, true);
 
-  const filteredChats = conversations.filter((conversation) => {
-    const displayName = conversation.type === "direct"
-      ? conversation.other_participant?.username || "Usuário"
-      : conversation.name || "Grupo";
-    return displayName.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  const filteredChats = (activeTab === "archived" ? archivedConversations : conversations)
+    .filter((conversation: any) => {
+      if (activeTab === "all" && conversation.archived) return false;
+      if (activeTab === "archived" && !conversation.archived) return false;
+      
+      const displayName = conversation.type === "direct"
+        ? conversation.other_participant?.username || "Usuário"
+        : conversation.name || "Grupo";
+      return displayName.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+
+  const handleArchive = async (conversationId: string, archived: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("conversation_participants")
+        .update({ archived: !archived })
+        .eq("conversation_id", conversationId)
+        .eq("user_id", user?.id);
+
+      if (error) throw error;
+      toast.success(archived ? "Conversa desarquivada" : "Conversa arquivada");
+    } catch (error) {
+      toast.error("Erro ao arquivar conversa");
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-background">
       <div className="bg-card border-b border-border p-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Papo</h1>
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon">
-            <Plus className="h-5 w-5" />
+          <CreateGroupDialog />
+          <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}>
+            <Settings className="h-5 w-5" />
           </Button>
           <Button variant="ghost" size="icon" onClick={signOut}>
             <LogOut className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" size="icon">
-            <MoreVertical className="h-5 w-5" />
           </Button>
         </div>
       </div>
@@ -52,19 +75,29 @@ const Index = () => {
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-96">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {filteredChats.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-96 text-muted-foreground">
-                <p>Nenhuma conversa encontrada</p>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <TabsList className="w-full rounded-none border-b">
+          <TabsTrigger value="all" className="flex-1">Todas</TabsTrigger>
+          <TabsTrigger value="archived" className="flex-1">
+            <Archive className="h-4 w-4 mr-2" />
+            Arquivadas
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={activeTab} className="flex-1 m-0">
+          <ScrollArea className="h-full">
+            {isLoading ? (
+              <div className="flex items-center justify-center h-96">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
             ) : (
-              filteredChats.map((conversation) => {
+              <div className="divide-y divide-border">
+                {filteredChats.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-96 text-muted-foreground">
+                    <p>Nenhuma conversa encontrada</p>
+                  </div>
+                ) : (
+                  filteredChats.map((conversation: any) => {
                 const isDirectChat = conversation.type === "direct";
                 const displayName = isDirectChat
                   ? conversation.other_participant?.full_name || conversation.other_participant?.username || "Usuário"
@@ -91,11 +124,13 @@ const Index = () => {
                     onClick={() => navigate(`/chat/${conversation.id}`)}
                   />
                 );
-              })
+                  })
+                )}
+              </div>
             )}
-          </div>
-        )}
-      </ScrollArea>
+          </ScrollArea>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

@@ -1,34 +1,52 @@
 import { format } from "date-fns";
 import { Check, CheckCheck } from "lucide-react";
+import { MessageActions } from "./MessageActions";
 
 interface MessageBubbleProps {
+  id: string;
   content: string;
   timestamp: Date;
   isSent: boolean;
   isRead?: boolean;
   type?: string;
   metadata?: any;
+  edited?: boolean;
+  onEdit?: (messageId: string, newContent: string) => void;
+  onDelete?: (messageId: string) => void;
 }
 
 const MessageBubble = ({
+  id,
   content,
   timestamp,
   isSent,
   isRead = false,
   type = "text",
   metadata,
+  edited = false,
+  onEdit,
+  onDelete,
 }: MessageBubbleProps) => {
   return (
     <div
-      className={`flex ${isSent ? "justify-end" : "justify-start"} mb-2 animate-fade-in`}
+      className={`flex ${isSent ? "justify-end" : "justify-start"} mb-2 animate-fade-in group`}
     >
-      <div
-        className={`max-w-[75%] rounded-lg px-3 py-2 shadow-message backdrop-blur-sm ${
-          isSent
-            ? "bg-message-sent text-message-sent-foreground rounded-br-sm"
-            : "bg-message-received text-message-received-foreground rounded-bl-sm border border-border/50"
-        }`}
-      >
+      <div className="flex items-start gap-2 max-w-[75%]">
+        {isSent && onEdit && onDelete && (
+          <MessageActions
+            messageId={id}
+            currentContent={content}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        )}
+        <div
+          className={`rounded-lg px-3 py-2 shadow-message backdrop-blur-sm ${
+            isSent
+              ? "bg-message-sent text-message-sent-foreground rounded-br-sm"
+              : "bg-message-received text-message-received-foreground rounded-bl-sm border border-border/50"
+          }`}
+        >
         {type === "image" && metadata?.url ? (
           <div className="space-y-2">
             <img
@@ -47,10 +65,15 @@ const MessageBubble = ({
         )}
         
         <div
-          className={`flex items-center gap-1 mt-1 ${
+          className={`flex items-center gap-2 mt-1 ${
             isSent ? "justify-end" : "justify-start"
           }`}
         >
+          {edited && (
+            <span className="text-[10px] text-muted-foreground/60 italic">
+              editada
+            </span>
+          )}
           <span
             className={`text-[11px] ${
               isSent
@@ -69,6 +92,7 @@ const MessageBubble = ({
               )}
             </span>
           )}
+        </div>
         </div>
       </div>
     </div>

@@ -46,6 +46,7 @@ export type Database = {
       }
       conversation_participants: {
         Row: {
+          archived: boolean | null
           conversation_id: string
           id: string
           joined_at: string | null
@@ -55,6 +56,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          archived?: boolean | null
           conversation_id: string
           id?: string
           joined_at?: string | null
@@ -64,6 +66,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          archived?: boolean | null
           conversation_id?: string
           id?: string
           joined_at?: string | null

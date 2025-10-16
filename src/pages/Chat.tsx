@@ -7,6 +7,7 @@ import TypingIndicator from "@/components/TypingIndicator";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessages } from "@/hooks/useMessages";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import { useMessageActions } from "@/hooks/useMessageActions";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -79,7 +80,8 @@ const Chat = () => {
   });
 
   const { messages, sendMessage } = useMessages(id, user?.id);
-  const { typingUsers, setTyping } = useTypingIndicator(id, user?.id);
+  const { typingUsers, setTyping } = useTypingIndicator(id || "", user?.id || "");
+  const { editMessage, deleteMessage } = useMessageActions(id || "");
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -109,6 +111,22 @@ const Chat = () => {
     }
   };
 
+  const handleEditMessage = async (messageId: string, newContent: string) => {
+    try {
+      await editMessage({ messageId, content: newContent });
+    } catch (error) {
+      console.error("Error editing message:", error);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    try {
+      await deleteMessage(messageId);
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    }
+  };
+
   const isDirectChat = conversation.type === "direct";
   const displayName = isDirectChat && conversation.other_participant
     ? conversation.other_participant.full_name || conversation.other_participant.username || "Usuário"
@@ -132,12 +150,16 @@ const Chat = () => {
         {messages.map((message: any) => (
           <MessageBubble
             key={message.id}
+            id={message.id}
             content={message.content}
             timestamp={new Date(message.created_at)}
             isSent={message.sender_id === user?.id}
             isRead={false}
             type={message.type}
             metadata={message.metadata}
+            edited={message.edited}
+            onEdit={handleEditMessage}
+            onDelete={handleDeleteMessage}
           />
         ))}
         <div ref={messagesEndRef} />

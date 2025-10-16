@@ -7,6 +7,7 @@ export interface Conversation {
   name: string | null;
   avatar_url: string | null;
   updated_at: string;
+  archived?: boolean;
   last_message?: {
     content: string;
     created_at: string;
@@ -21,17 +22,18 @@ export interface Conversation {
   };
 }
 
-export const useConversations = (userId: string | undefined) => {
+export const useConversations = (userId: string | undefined, includeArchived = false) => {
   return useQuery({
-    queryKey: ["conversations", userId],
+    queryKey: ["conversations", userId, includeArchived],
     queryFn: async () => {
       if (!userId) return [];
 
-      const { data: participations, error } = await supabase
+      let query = supabase
         .from("conversation_participants")
         .select(`
           conversation_id,
           last_read_at,
+          archived,
           conversations (
             id,
             type,
@@ -41,6 +43,12 @@ export const useConversations = (userId: string | undefined) => {
           )
         `)
         .eq("user_id", userId);
+
+      if (!includeArchived) {
+        query = query.eq("archived", false);
+      }
+
+      const { data: participations, error } = await query;
 
       if (error) throw error;
 
@@ -89,6 +97,7 @@ export const useConversations = (userId: string | undefined) => {
 
           return {
             ...conversation,
+            archived: p.archived,
             last_message: lastMessage,
             unread_count: count || 0,
             other_participant: otherParticipant,
