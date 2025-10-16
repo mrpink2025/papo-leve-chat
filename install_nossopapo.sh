@@ -23,6 +23,11 @@ LOG_DIR="${APP_DIR}/logs"
 INSTALL_LOG="${LOG_DIR}/install_$(date +%Y%m%d_%H%M%S).log"
 NODE_VERSION="20"
 
+# Criar estrutura de diretórios (antes de qualquer log)
+mkdir -p "$APP_DIR"
+mkdir -p "$LOG_DIR"
+mkdir -p "${APP_DIR}/backups"
+
 # Função para logging
 log() {
     echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$INSTALL_LOG"
@@ -73,11 +78,8 @@ if ! grep -q "Ubuntu 24.04" /etc/os-release; then
 fi
 success "Sistema validado"
 
-# Criar estrutura de diretórios
-log "📁 Criando estrutura de diretórios..."
-mkdir -p "$APP_DIR"
-mkdir -p "$LOG_DIR"
-mkdir -p "${APP_DIR}/backups"
+# Verificar estrutura de diretórios
+log "📁 Verificando estrutura de diretórios..."
 success "Diretórios criados"
 
 # Atualizar sistema
