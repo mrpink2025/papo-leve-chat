@@ -76,7 +76,22 @@ sudo fail2ban-client set sshd unbanip IP # Desbanir IP
 
 ## 🔧 Tarefas Comuns
 
-### Atualizar Aplicação
+### Atualizar Aplicação (Automático - RECOMENDADO)
+```bash
+# Atualização automática com backup e rollback
+sudo /var/www/nossopapo/update_nossopapo.sh
+
+# Forçar rebuild mesmo sem mudanças
+sudo /var/www/nossopapo/update_nossopapo.sh --force
+
+# Simular atualização (dry-run)
+sudo /var/www/nossopapo/update_nossopapo.sh --dry-run
+
+# Modo verbose para mais detalhes
+sudo /var/www/nossopapo/update_nossopapo.sh --verbose
+```
+
+### Atualizar Aplicação (Manual - Avançado)
 ```bash
 cd /var/www/nossopapo
 git pull
@@ -305,8 +320,9 @@ sudo systemctl reload nginx
 ## ⚡ Scripts Úteis
 
 ```bash
-/var/www/nossopapo/backup.sh      # Backup
-/var/www/nossopapo/check_pwa.sh   # Verificar PWA
+/var/www/nossopapo/update_nossopapo.sh  # Atualização automática
+/var/www/nossopapo/backup.sh            # Backup manual
+/var/www/nossopapo/check_pwa.sh         # Verificar PWA
 ```
 
 ---
