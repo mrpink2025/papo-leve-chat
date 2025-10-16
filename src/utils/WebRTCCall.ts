@@ -201,9 +201,25 @@ export class WebRTCCall {
     this.remoteStream = new MediaStream();
     this.peerConnection.ontrack = (event) => {
       console.log('[WebRTC] Track remoto recebido:', event.track.kind);
-      event.streams[0].getTracks().forEach(track => {
-        this.remoteStream!.addTrack(track);
-      });
+      
+      // ✅ Adicionar track diretamente ao remoteStream (compatível com todos os navegadores)
+      if (!this.remoteStream!.getTracks().find(t => t.id === event.track.id)) {
+        this.remoteStream!.addTrack(event.track);
+        this.logEvent('REMOTE_TRACK_ADDED', { 
+          kind: event.track.kind, 
+          id: event.track.id,
+          enabled: event.track.enabled,
+          muted: event.track.muted,
+          readyState: event.track.readyState,
+          streamsCount: event.streams.length 
+        });
+        console.log('[WebRTC] 🎤 Remote track details:', {
+          kind: event.track.kind,
+          enabled: event.track.enabled,
+          muted: event.track.muted,
+          readyState: event.track.readyState
+        });
+      }
       
       if (this.onRemoteStream) {
         this.onRemoteStream(this.remoteStream);
@@ -883,25 +899,38 @@ export class WebRTCCall {
     this.currentStatus = status;
     this.logEvent('STATUS_CHANGE', { status });
     
+    // ✅ Mapear status interno para status válido do banco
+    let dbStatus: string | null = null;
+    if (status === 'connected') {
+      dbStatus = 'answered';
+    } else if (status === 'calling' || status === 'connecting') {
+      dbStatus = 'ringing';
+    } else if (status === 'ended') {
+      dbStatus = 'ended';
+    } else if (status === 'failed') {
+      dbStatus = 'missed';
+    }
+    
     // Atualizar status no banco de dados
-    if (this.callId && status === 'connected') {
+    if (this.callId && dbStatus) {
+      const updateData: any = { status: dbStatus };
+      
+      if (dbStatus === 'answered') {
+        updateData.started_at = new Date().toISOString();
+      } else if (dbStatus === 'ended') {
+        updateData.ended_at = new Date().toISOString();
+      }
+      
       supabase
         .from('call_notifications')
-        .update({ status: 'active', started_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', this.callId)
         .then(({ error }) => {
-          if (error) console.error('[WebRTC] Erro ao atualizar status no banco:', error);
-        });
-    } else if (this.callId && status === 'ended') {
-      supabase
-        .from('call_notifications')
-        .update({ 
-          status: 'ended', 
-          ended_at: new Date().toISOString()
-        })
-        .eq('id', this.callId)
-        .then(({ error }) => {
-          if (error) console.error('[WebRTC] Erro ao atualizar status no banco:', error);
+          if (error) {
+            console.error('[WebRTC] Erro ao atualizar status no banco:', error);
+          } else {
+            console.log('[WebRTC] ✅ Status atualizado no banco:', dbStatus);
+          }
         });
     }
     

@@ -102,7 +102,15 @@ export const useNativeVideoCall = () => {
       };
 
       call.onRemoteStream = (stream) => {
-        console.log('[useNativeVideoCall] Stream remoto recebido');
+        console.log('[useNativeVideoCall] 🔊 Remote stream recebido:', {
+          id: stream.id,
+          tracks: stream.getTracks().map(t => ({
+            kind: t.kind,
+            enabled: t.enabled,
+            muted: t.muted,
+            readyState: t.readyState
+          }))
+        });
         setCallState(prev => ({ ...prev, remoteStream: stream }));
       };
 
@@ -192,6 +200,15 @@ export const useNativeVideoCall = () => {
       };
 
       call.onRemoteStream = (stream) => {
+        console.log('[useNativeVideoCall] 🔊 Remote stream recebido (callee):', {
+          id: stream.id,
+          tracks: stream.getTracks().map(t => ({
+            kind: t.kind,
+            enabled: t.enabled,
+            muted: t.muted,
+            readyState: t.readyState
+          }))
+        });
         setCallState(prev => ({ ...prev, remoteStream: stream }));
       };
 
