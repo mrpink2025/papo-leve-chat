@@ -134,30 +134,54 @@ export const CreateGroupDialog = () => {
 
       console.log('[CreateGroup] ✅ Conversa criada:', conversation);
 
-      const participants = [
-        { conversation_id: conversation.id, user_id: user.id, role: "admin" },
-        ...selectedUsers.map((userId) => ({
+      // Passo 1: Adicionar o criador como admin primeiro
+      console.log('[CreateGroup] Adicionando criador como admin');
+      const { error: adminError } = await supabase
+        .from("conversation_participants")
+        .insert({
+          conversation_id: conversation.id,
+          user_id: user.id,
+          role: "admin"
+        });
+
+      if (adminError) {
+        console.error('[CreateGroup] ❌ Erro ao adicionar criador como admin:', {
+          error: adminError,
+          code: adminError.code,
+          message: adminError.message,
+          details: adminError.details,
+          hint: adminError.hint
+        });
+        throw adminError;
+      }
+
+      console.log('[CreateGroup] ✅ Criador adicionado como admin');
+
+      // Passo 2: Adicionar os demais participantes (se houver)
+      if (selectedUsers.length > 0) {
+        console.log('[CreateGroup] Adicionando membros:', selectedUsers.length);
+        const members = selectedUsers.map((userId) => ({
           conversation_id: conversation.id,
           user_id: userId,
           role: "member",
-        })),
-      ];
+        }));
 
-      console.log('[CreateGroup] Adicionando participantes:', participants.length);
+        const { error: membersError } = await supabase
+          .from("conversation_participants")
+          .insert(members);
 
-      const { error: partError } = await supabase
-        .from("conversation_participants")
-        .insert(participants);
+        if (membersError) {
+          console.error('[CreateGroup] ❌ Erro ao adicionar membros:', {
+            error: membersError,
+            code: membersError.code,
+            message: membersError.message,
+            details: membersError.details,
+            hint: membersError.hint
+          });
+          throw membersError;
+        }
 
-      if (partError) {
-        console.error('[CreateGroup] ❌ Erro ao adicionar participantes:', {
-          error: partError,
-          code: partError.code,
-          message: partError.message,
-          details: partError.details,
-          hint: partError.hint
-        });
-        throw partError;
+        console.log('[CreateGroup] ✅ Membros adicionados');
       }
 
       console.log('[CreateGroup] ✅ Grupo criado com sucesso');
