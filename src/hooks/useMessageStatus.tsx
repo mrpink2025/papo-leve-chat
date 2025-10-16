@@ -10,6 +10,11 @@ export const useMessageStatus = (
   const [messageStatuses, setMessageStatuses] = useState<Record<string, string>>({});
   const updateTimerRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Batching and throttle refs
+  const pendingReadIdsRef = useRef<Set<string>>(new Set());
+  const flushReadTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const statusRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Mark messages as delivered when viewing conversation
   useEffect(() => {
     if (!conversationId || !userId) return;
@@ -75,59 +80,89 @@ export const useMessageStatus = (
     }, 1500);
   };
 
-  const markAsRead = async (messageId: string) => {
-    if (!userId) return;
+  // Batch flush of pending "read" IDs
+  const flushPendingReads = async () => {
+    if (!conversationId || !userId) return;
+    const ids = Array.from(pendingReadIdsRef.current);
+    pendingReadIdsRef.current.clear();
+    if (ids.length === 0) return;
 
-    // Skip if already read
-    if (messageStatuses[messageId] === "read") {
-      return;
-    }
+    // Only upsert what isn't already "read"
+    const toUpsert = ids
+      .filter(id => messageStatuses[id] !== "read")
+      .map(id => ({
+        message_id: id,
+        user_id: userId,
+        status: "read",
+        timestamp: new Date().toISOString(),
+      }));
+
+    if (toUpsert.length === 0) return;
 
     try {
-      await supabase
-        .from("message_status")
-        .upsert(
-          {
-            message_id: messageId,
-            user_id: userId,
-            status: "read",
-            timestamp: new Date().toISOString(),
-          },
-          { onConflict: 'message_id,user_id' }
-        );
-
-      // Schedule debounced update of last_read_at
+      await supabase.from("message_status").upsert(toUpsert, { onConflict: "message_id,user_id" });
       scheduleLastReadUpdate();
     } catch (error: any) {
-      // Ignore 409 conflicts
-      if (error?.code !== '23505' && !error?.message?.includes('409')) {
-        console.error('[useMessageStatus] Error marking as read:', error);
+      if (error?.code !== "23505" && !String(error?.message || "").includes("409")) {
+        console.error("[useMessageStatus] Error batch marking as read:", error);
       }
     }
   };
 
-  // Fetch message statuses
+  // Enqueue message ID and trigger debounced batch flush
+  const markAsRead = (messageId: string) => {
+    if (!userId) return;
+    if (messageStatuses[messageId] === "read") return;
+
+    pendingReadIdsRef.current.add(messageId);
+
+    if (flushReadTimerRef.current) clearTimeout(flushReadTimerRef.current);
+    flushReadTimerRef.current = setTimeout(() => {
+      flushPendingReads();
+    }, 200);
+  };
+
+  // Fetch message statuses limited to current conversation with throttle
   useEffect(() => {
     if (!conversationId || !userId) return;
 
     const fetchStatuses = async () => {
-      const { data } = await supabase
+      // Get message IDs from cache for current conversation only
+      const cached = queryClient.getQueriesData<any[]>({ queryKey: ["messages", conversationId] });
+      const idsSet = new Set<string>();
+      cached.forEach(([, arr]) => (arr || []).forEach((m: any) => idsSet.add(m.id)));
+      const idList = Array.from(idsSet);
+
+      if (idList.length === 0) {
+        setMessageStatuses({});
+        return;
+      }
+
+      const { data, error } = await supabase
         .from("message_status")
         .select("message_id, status")
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .in("message_id", idList);
 
-      if (data) {
-        const statusMap: Record<string, string> = {};
-        data.forEach((s) => {
-          statusMap[s.message_id] = s.status;
-        });
-        setMessageStatuses(statusMap);
+      if (error) {
+        console.error("[useMessageStatus] fetchStatuses error:", error);
+        return;
       }
+
+      const map: Record<string, string> = {};
+      (data || []).forEach((s) => { map[s.message_id] = s.status; });
+      setMessageStatuses(map);
     };
 
+    const scheduleStatusRefresh = () => {
+      if (statusRefreshTimerRef.current) clearTimeout(statusRefreshTimerRef.current);
+      statusRefreshTimerRef.current = setTimeout(fetchStatuses, 600);
+    };
+
+    // Initial fetch
     fetchStatuses();
 
-    // Subscribe to status changes
+    // Subscribe to status changes with throttle
     const channel = supabase
       .channel(`message_status:${conversationId}`)
       .on(
@@ -138,16 +173,15 @@ export const useMessageStatus = (
           table: "message_status",
           filter: `user_id=eq.${userId}`,
         },
-        () => {
-          fetchStatuses();
-        }
+        () => { scheduleStatusRefresh(); }
       )
       .subscribe();
 
     return () => {
+      if (statusRefreshTimerRef.current) clearTimeout(statusRefreshTimerRef.current);
       supabase.removeChannel(channel);
     };
-  }, [conversationId, userId]);
+  }, [conversationId, userId, queryClient]);
 
   const getMessageStatus = (messageId: string): "sending" | "sent" | "read" | "error" => {
     return (messageStatuses[messageId] as any) || "sent";

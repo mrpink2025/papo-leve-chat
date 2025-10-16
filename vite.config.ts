@@ -113,14 +113,9 @@ export default defineConfig(() => ({
           },
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/.*/i,
-            handler: "NetworkFirst",
+            handler: "NetworkOnly",
             options: {
-              cacheName: "np-supabase-api-cache",
-              networkTimeoutSeconds: 10,
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 5, // 5 minutos
-              },
+              cacheName: "np-supabase-api-no-cache",
             },
           },
         ],
