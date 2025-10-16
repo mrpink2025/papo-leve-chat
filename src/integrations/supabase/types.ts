@@ -38,6 +38,51 @@ export type Database = {
         }
         Relationships: []
       }
+      call_notifications: {
+        Row: {
+          call_type: string
+          caller_id: string
+          conversation_id: string
+          created_at: string
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          ringtone: string | null
+          started_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          call_type: string
+          caller_id: string
+          conversation_id: string
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          ringtone?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          call_type?: string
+          caller_id?: string
+          conversation_id?: string
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          ringtone?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       contacts: {
         Row: {
           added_at: string | null
@@ -711,6 +756,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_ringtones: {
+        Row: {
+          contact_ringtones: Json | null
+          created_at: string
+          default_ringtone: string
+          flash_enabled: boolean | null
+          id: string
+          updated_at: string
+          user_id: string
+          vibration_enabled: boolean | null
+        }
+        Insert: {
+          contact_ringtones?: Json | null
+          created_at?: string
+          default_ringtone?: string
+          flash_enabled?: boolean | null
+          id?: string
+          updated_at?: string
+          user_id: string
+          vibration_enabled?: boolean | null
+        }
+        Update: {
+          contact_ringtones?: Json | null
+          created_at?: string
+          default_ringtone?: string
+          flash_enabled?: boolean | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+          vibration_enabled?: boolean | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -735,6 +813,10 @@ export type Database = {
     }
     Functions: {
       cleanup_expired_notifications: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      cleanup_old_calls: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
