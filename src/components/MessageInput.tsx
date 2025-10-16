@@ -92,9 +92,9 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
       { type: "audio/webm" }
     );
 
-    const url = await uploadFile({ file, conversationId, type: "voice" });
+    const url = await uploadFile({ file, conversationId, type: "audio" });
     if (url) {
-      onSendMessage("Mensagem de voz", "voice", { url, filename: file.name });
+      onSendMessage("Mensagem de voz", "audio", { url, filename: file.name });
     }
     setShowRecorder(false);
   };

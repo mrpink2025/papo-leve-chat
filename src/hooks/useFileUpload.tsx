@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-type MediaType = "image" | "video" | "document" | "voice";
+type MediaType = "image" | "video" | "document" | "audio";
 
 interface UploadOptions {
   file: File;
@@ -19,7 +19,7 @@ export const useFileUpload = () => {
       case "image": return "chat-media";
       case "video": return "videos";
       case "document": return "documents";
-      case "voice": return "voice-notes";
+      case "audio": return "voice-notes";
       default: return "chat-media";
     }
   };
@@ -29,7 +29,7 @@ export const useFileUpload = () => {
       case "image": return 5 * 1024 * 1024; // 5MB
       case "video": return 50 * 1024 * 1024; // 50MB
       case "document": return 10 * 1024 * 1024; // 10MB
-      case "voice": return 5 * 1024 * 1024; // 5MB
+      case "audio": return 5 * 1024 * 1024; // 5MB
       default: return 5 * 1024 * 1024;
     }
   };
