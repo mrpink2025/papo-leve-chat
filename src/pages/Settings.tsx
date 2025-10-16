@@ -101,11 +101,11 @@ const Settings = () => {
     try {
       // Deletar avatar antigo se existir
       if (profile?.avatar_url) {
-        const oldPath = profile.avatar_url.split('/').pop();
+        const oldPath = profile.avatar_url.split('/object/public/avatars/')[1];
         if (oldPath) {
           await supabase.storage
             .from("avatars")
-            .remove([`${user.id}/${oldPath}`]);
+            .remove([oldPath]);
         }
       }
 
@@ -118,6 +118,7 @@ const Settings = () => {
       const { error: uploadError } = await supabase.storage
         .from("avatars")
         .upload(filePath, file, {
+          contentType: file.type,
           cacheControl: '3600',
           upsert: false
         });
