@@ -9,14 +9,14 @@ export const useStories = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: stories, isLoading } = useQuery({
+  const { data: stories, isLoading, error: queryError } = useQuery({
     queryKey: ['stories'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('stories')
         .select(`
           *,
-          profiles:user_id (
+          profiles!stories_user_id_fkey (
             id,
             username,
             full_name,
@@ -26,7 +26,13 @@ export const useStories = () => {
         .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Stories query error:', error);
+        throw error;
+      }
+      
+      console.log('✅ Stories loaded:', data?.length || 0, 'stories');
+      console.log('📊 Stories data:', data);
       return data;
     },
     enabled: !!user,
