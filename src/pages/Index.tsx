@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import logo from "@/assets/nosso-papo-logo.png";
+import logo from "@/assets/nosso-papo-logo-transparent.png";
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
