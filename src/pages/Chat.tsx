@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { isSameDay } from "date-fns";
+import { useNavigate } from "react-router-dom";
 
 interface ConversationData {
   id: string;
@@ -41,6 +42,7 @@ interface ConversationData {
 const Chat = () => {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [replyToMessage, setReplyToMessage] = useState<{ id: string; content: string } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -173,6 +175,193 @@ const Chat = () => {
       await deleteMessage(messageId);
     } catch (error) {
       console.error("Error deleting message:", error);
+    }
+  };
+
+  const handleOpenProfile = (userId: string) => {
+    console.log('[Chat] Abrir perfil do usuário:', userId);
+    // TODO: Implementar ProfileViewDialog
+    toast({
+      title: "Em breve",
+      description: "Visualização de perfil será implementada em breve",
+    });
+  };
+
+  const handleSendPrivateMessage = async (userId: string) => {
+    try {
+      console.log('[Chat] Criar conversa privada com:', userId);
+      
+      // Buscar conversas diretas do usuário atual
+      const { data: myParticipations } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user?.id);
+      
+      if (!myParticipations) return;
+      
+      const myConvIds = myParticipations.map(p => p.conversation_id);
+      
+      // Buscar conversas diretas
+      const { data: directConvs } = await supabase
+        .from('conversations')
+        .select('id, type')
+        .in('id', myConvIds)
+        .eq('type', 'direct');
+      
+      if (!directConvs) return;
+      
+      // Para cada conversa direta, verificar se o outro participante é o userId
+      for (const conv of directConvs) {
+        const { data: participants } = await supabase
+          .from('conversation_participants')
+          .select('user_id')
+          .eq('conversation_id', conv.id);
+        
+        if (participants) {
+          const otherUserId = participants.find(p => p.user_id !== user?.id)?.user_id;
+          if (otherUserId === userId) {
+            // Conversa já existe
+            navigate(`/chat/${conv.id}`);
+            return;
+          }
+        }
+      }
+      
+      // Criar nova conversa
+      const { data: newConv, error: convError } = await supabase
+        .from('conversations')
+        .insert({
+          type: 'direct',
+          created_by: user?.id,
+        })
+        .select()
+        .single();
+      
+      if (convError) throw convError;
+      
+      // Adicionar participantes
+      const { error: partError } = await supabase
+        .from('conversation_participants')
+        .insert([
+          { conversation_id: newConv.id, user_id: user?.id },
+          { conversation_id: newConv.id, user_id: userId },
+        ]);
+      
+      if (partError) throw partError;
+      
+      // Navegar para a nova conversa
+      navigate(`/chat/${newConv.id}`);
+      toast({
+        title: "Conversa iniciada",
+        description: "Você pode começar a conversar agora",
+      });
+    } catch (error) {
+      console.error('[Chat] Erro ao criar conversa:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível criar a conversa",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAudioCallFromMenu = async (userId: string) => {
+    try {
+      console.log('[Chat] Iniciar chamada de áudio com:', userId);
+      
+      // Buscar perfil do usuário
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, full_name, avatar_url')
+        .eq('id', userId)
+        .single();
+      
+      if (!profile) {
+        toast({
+          title: "Erro",
+          description: "Usuário não encontrado",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Verificar permissões de mídia
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (error) {
+        console.error('[Chat] Erro ao verificar permissões:', error);
+        toast({
+          title: "Permissões necessárias",
+          description: "Por favor, permita o acesso ao microfone",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Buscar ou criar conversa direta
+      await handleSendPrivateMessage(userId);
+      
+      toast({
+        title: "Iniciando chamada",
+        description: "Aguarde enquanto conectamos...",
+      });
+    } catch (error) {
+      console.error('[Chat] Erro ao iniciar chamada:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível iniciar a chamada",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleVideoCallFromMenu = async (userId: string) => {
+    try {
+      console.log('[Chat] Iniciar chamada de vídeo com:', userId);
+      
+      // Buscar perfil do usuário
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, full_name, avatar_url')
+        .eq('id', userId)
+        .single();
+      
+      if (!profile) {
+        toast({
+          title: "Erro",
+          description: "Usuário não encontrado",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Verificar permissões de mídia
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      } catch (error) {
+        console.error('[Chat] Erro ao verificar permissões:', error);
+        toast({
+          title: "Permissões necessárias",
+          description: "Por favor, permita o acesso à câmera e microfone",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Buscar ou criar conversa direta
+      await handleSendPrivateMessage(userId);
+      
+      toast({
+        title: "Iniciando chamada",
+        description: "Aguarde enquanto conectamos...",
+      });
+    } catch (error) {
+      console.error('[Chat] Erro ao iniciar chamada:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível iniciar a chamada",
+        variant: "destructive",
+      });
     }
   };
 
@@ -404,9 +593,13 @@ const Chat = () => {
                 }}
                 isGroup={conversation.type === "group"}
                 showSenderInfo={showSenderInfo}
-                senderName={message.sender?.full_name || message.sender?.username}
+                senderName={message.sender?.full_name || message.sender?.username || "Usuário"}
                 senderAvatar={message.sender?.avatar_url}
                 senderId={message.sender_id}
+                onOpenProfile={handleOpenProfile}
+                onSendMessage={handleSendPrivateMessage}
+                onAudioCall={handleAudioCallFromMenu}
+                onVideoCall={handleVideoCallFromMenu}
               />
             </div>
           );

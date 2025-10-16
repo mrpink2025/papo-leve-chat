@@ -6,6 +6,7 @@ import ReactionPicker from "./ReactionPicker";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { parseMentions, getUserColor } from "@/utils/mentionUtils";
+import { UserContextMenu } from "./UserContextMenu";
 
 interface MessageBubbleProps {
   id: string;
@@ -29,6 +30,11 @@ interface MessageBubbleProps {
   senderName?: string;
   senderAvatar?: string;
   senderId?: string;
+  // Handlers do menu contextual
+  onOpenProfile?: (userId: string) => void;
+  onSendMessage?: (userId: string) => void;
+  onAudioCall?: (userId: string) => void;
+  onVideoCall?: (userId: string) => void;
 }
 
 const MessageBubble = ({
@@ -52,6 +58,10 @@ const MessageBubble = ({
   senderName,
   senderAvatar,
   senderId,
+  onOpenProfile,
+  onSendMessage,
+  onAudioCall,
+  onVideoCall,
 }: MessageBubbleProps) => {
   const { groupedReactions, addReaction, removeReaction } = useReactions(id);
   const hasReactions = Object.keys(groupedReactions).length > 0;
@@ -66,13 +76,22 @@ const MessageBubble = ({
     >
       <div className="flex items-start gap-2 max-w-[75%]">
         {/* Avatar (apenas em grupos e quando showSenderInfo) */}
-        {isGroup && !isSent && showSenderInfo && (
-          <Avatar className="h-8 w-8 shrink-0 ring-1 ring-border/30">
-            <AvatarImage src={senderAvatar} alt={senderName} />
-            <AvatarFallback className="bg-primary/20 text-xs">
-              {senderName?.substring(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+        {isGroup && !isSent && showSenderInfo && senderId && (
+          <UserContextMenu
+            userId={senderId}
+            userName={senderName || "Usuário"}
+            onOpenProfile={onOpenProfile ? () => onOpenProfile(senderId) : undefined}
+            onSendMessage={onSendMessage ? () => onSendMessage(senderId) : undefined}
+            onAudioCall={onAudioCall ? () => onAudioCall(senderId) : undefined}
+            onVideoCall={onVideoCall ? () => onVideoCall(senderId) : undefined}
+          >
+            <Avatar className="h-8 w-8 shrink-0 ring-1 ring-border/30">
+              <AvatarImage src={senderAvatar} alt={senderName} />
+              <AvatarFallback className="bg-primary/20 text-xs">
+                {senderName?.substring(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </UserContextMenu>
         )}
 
         {/* Espaçamento para mensagens agrupadas (sem avatar) */}
@@ -98,10 +117,19 @@ const MessageBubble = ({
             } ${status === "error" ? "opacity-50" : ""}`}
           >
             {/* Nome do remetente (apenas em grupos) */}
-            {isGroup && !isSent && showSenderInfo && (
-              <div className={`text-xs font-semibold mb-1 ${senderColor}`}>
-                {senderName || "Usuário"}
-              </div>
+            {isGroup && !isSent && showSenderInfo && senderId && (
+              <UserContextMenu
+                userId={senderId}
+                userName={senderName || "Usuário"}
+                onOpenProfile={onOpenProfile ? () => onOpenProfile(senderId) : undefined}
+                onSendMessage={onSendMessage ? () => onSendMessage(senderId) : undefined}
+                onAudioCall={onAudioCall ? () => onAudioCall(senderId) : undefined}
+                onVideoCall={onVideoCall ? () => onVideoCall(senderId) : undefined}
+              >
+                <span className={`text-xs font-semibold mb-1 ${senderColor}`}>
+                  {senderName || "Usuário Desconhecido"}
+                </span>
+              </UserContextMenu>
             )}
 
             {/* Reply preview */}
