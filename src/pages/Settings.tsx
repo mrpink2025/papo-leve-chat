@@ -43,6 +43,7 @@ const Settings = () => {
     bio: "",
     phone: "",
   });
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -82,31 +83,75 @@ const Settings = () => {
     const file = e.target.files?.[0];
     if (!file || !user?.id) return;
 
-    try {
-      const fileExt = file.name.split(".").pop();
-      const filePath = `${user.id}-${Date.now()}.${fileExt}`;
+    // Validar tipo de arquivo
+    if (!file.type.startsWith("image/")) {
+      toast.error("Por favor, selecione apenas arquivos de imagem");
+      return;
+    }
 
+    // Validar tamanho (máximo 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      toast.error("A imagem deve ter no máximo 5MB");
+      return;
+    }
+
+    setUploadingAvatar(true);
+
+    try {
+      // Deletar avatar antigo se existir
+      if (profile?.avatar_url) {
+        const oldPath = profile.avatar_url.split('/').pop();
+        if (oldPath) {
+          await supabase.storage
+            .from("avatars")
+            .remove([`${user.id}/${oldPath}`]);
+        }
+      }
+
+      // Gerar nome único para o arquivo
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      // Upload do novo avatar
       const { error: uploadError } = await supabase.storage
         .from("avatars")
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw new Error(uploadError.message);
+      }
 
+      // Obter URL pública
       const { data: { publicUrl } } = supabase.storage
         .from("avatars")
         .getPublicUrl(filePath);
 
+      // Atualizar perfil com nova URL
       const { error: updateError } = await supabase
         .from("profiles")
         .update({ avatar_url: publicUrl })
         .eq("id", user.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("Update error:", updateError);
+        throw new Error(updateError.message);
+      }
 
       queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
-      toast.success("Avatar atualizado");
-    } catch (error) {
-      toast.error("Erro ao fazer upload do avatar");
+      toast.success("Avatar atualizado com sucesso!");
+    } catch (error: any) {
+      console.error("Avatar upload error:", error);
+      toast.error(`Erro ao fazer upload: ${error.message || "Tente novamente"}`);
+    } finally {
+      setUploadingAvatar(false);
+      // Reset do input
+      e.target.value = "";
     }
   };
 
@@ -129,13 +174,18 @@ const Settings = () => {
                   {profile?.username?.substring(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <label className="absolute bottom-0 right-0 bg-primary rounded-full p-2 cursor-pointer hover:bg-primary-glow transition-colors">
-                <Camera className="h-5 w-5 text-primary-foreground" />
+              <label className={`absolute bottom-0 right-0 bg-primary rounded-full p-2 cursor-pointer hover:bg-primary-glow transition-colors ${uploadingAvatar ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                {uploadingAvatar ? (
+                  <div className="h-5 w-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Camera className="h-5 w-5 text-primary-foreground" />
+                )}
                 <input
                   type="file"
                   accept="image/*"
                   className="hidden"
                   onChange={handleAvatarUpload}
+                  disabled={uploadingAvatar}
                 />
               </label>
             </div>
