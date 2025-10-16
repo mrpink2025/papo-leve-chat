@@ -77,7 +77,7 @@ const MessageBubble = ({
                 <img
                   src={metadata.url}
                   alt={metadata.filename || "Imagem"}
-                  className="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                  className="rounded-lg max-w-xs max-h-96 w-auto h-auto cursor-pointer hover:opacity-90 transition-opacity object-contain"
                   loading="lazy"
                   onClick={() => window.open(metadata.url, "_blank")}
                 />
@@ -88,7 +88,7 @@ const MessageBubble = ({
             ) : type === "voice" && metadata?.url ? (
               <audio controls src={metadata.url} className="max-w-full" />
             ) : type === "video" && metadata?.url ? (
-              <video controls src={metadata.url} className="max-w-full rounded-lg" />
+              <video controls src={metadata.url} className="max-w-xs max-h-96 rounded-lg object-contain" />
             ) : type === "document" && metadata?.url ? (
               <a
                 href={metadata.url}
