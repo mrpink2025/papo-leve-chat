@@ -22,6 +22,7 @@ interface ChatHeaderProps {
   isGroup?: boolean;
   conversationId?: string;
   otherUserId?: string; // ID do outro usuário em conversas diretas
+  memberCount?: number; // Número de participantes em grupos
   onVideoCall?: () => void;
   onAudioCall?: () => void;
   onSearch?: () => void;
@@ -35,6 +36,7 @@ const ChatHeader = ({
   isGroup = false,
   conversationId,
   otherUserId,
+  memberCount,
   onVideoCall, 
   onAudioCall,
   onSearch 
@@ -48,7 +50,13 @@ const ChatHeader = ({
     queryKey: ["profile-info", conversationId, otherUserId, isGroup],
     queryFn: async () => {
       if (isGroup && conversationId) {
-        // Buscar informações do grupo
+        // Buscar informações do grupo (nome e contagem de membros)
+        const { data: groupData } = await supabase
+          .from("conversations")
+          .select("name")
+          .eq("id", conversationId)
+          .single();
+
         const { data: participants } = await supabase
           .from("conversation_participants")
           .select("id")
@@ -57,6 +65,7 @@ const ChatHeader = ({
         return {
           memberCount: participants?.length || 0,
           bio: null,
+          groupName: groupData?.name || null,
         };
       } else if (otherUserId) {
         // Buscar bio do usuário
@@ -69,9 +78,10 @@ const ChatHeader = ({
         return {
           memberCount: undefined,
           bio: profile?.bio || null,
+          groupName: null,
         };
       }
-      return { memberCount: undefined, bio: null };
+      return { memberCount: undefined, bio: null, groupName: null };
     },
     enabled: showProfileView && (!!conversationId || !!otherUserId),
   });
@@ -110,7 +120,10 @@ const ChatHeader = ({
 
       {/* Lado Direito: Ações (estilo WhatsApp) */}
       <div className="flex items-center gap-1 shrink-0">
-        {!isGroup && (
+        {(
+          !isGroup || 
+          (isGroup && memberCount && memberCount <= 10 && name !== "Bem-vindos")
+        ) && (
           <>
             <Button
               variant="ghost"

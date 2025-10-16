@@ -33,6 +33,7 @@ interface ConversationData {
   type: string;
   name: string | null;
   avatar_url: string | null;
+  member_count?: number;
   other_participant?: {
     id: string;
     username: string;
@@ -79,6 +80,24 @@ const Chat = () => {
 
       if (error) throw error;
 
+      // Criar objeto base do resultado
+      let result: ConversationData = {
+        id: data.id,
+        type: data.type,
+        name: data.name,
+        avatar_url: data.avatar_url,
+      };
+
+      // Buscar contagem de membros (para grupos)
+      if (data.type === "group") {
+        const { count } = await supabase
+          .from("conversation_participants")
+          .select("*", { count: 'exact', head: true })
+          .eq("conversation_id", id);
+        
+        result.member_count = count || 0;
+      }
+
       // For direct conversations, get other participant
       if (data.type === "direct") {
         const { data: participants } = await supabase
@@ -96,15 +115,12 @@ const Chat = () => {
             .single();
 
           if (profile) {
-            return {
-              ...data,
-              other_participant: profile,
-            };
+            result.other_participant = profile;
           }
         }
       }
 
-      return data;
+      return result;
     },
     enabled: !!id && !!user,
   });
@@ -470,25 +486,38 @@ const Chat = () => {
         isGroup={conversation.type === "group"}
         conversationId={id}
         otherUserId={conversation.other_participant?.id}
+        memberCount={conversation?.member_count}
         onVideoCall={async () => {
           console.log('[Chat] Tentando iniciar chamada de vídeo:', {
             conversationId: id,
             isDirectChat,
-            hasOtherParticipant: !!conversation.other_participant,
-            participantInfo: conversation.other_participant
+            isGroup: conversation.type === "group",
+            groupName: conversation.name,
+            memberCount: conversation.member_count,
           });
 
-          // Verificar se é conversa direta
-          if (!isDirectChat) {
+          // Verificar se é grupo "Bem-vindos"
+          if (conversation.type === "group" && conversation.name === "Bem-vindos") {
             toast({
-              title: "Recurso não disponível",
-              description: "Chamadas em grupo ainda não estão disponíveis",
+              title: "Chamadas desabilitadas",
+              description: "Este grupo não suporta chamadas",
               variant: "default",
             });
             return;
           }
 
-          if (!id || !conversation.other_participant) {
+          // Verificar limite de membros em grupos
+          if (conversation.type === "group" && conversation.member_count && conversation.member_count > 10) {
+            toast({
+              title: "Grupo muito grande",
+              description: "Chamadas em grupo são limitadas a 10 participantes",
+              variant: "default",
+            });
+            return;
+          }
+
+          // Para conversa direta
+          if (isDirectChat && !conversation.other_participant) {
             toast({
               title: "Erro ao iniciar chamada",
               description: "Não foi possível identificar o destinatário",
@@ -511,11 +540,11 @@ const Chat = () => {
           }
 
           startCall(
-            id,
+            id!,
             'video',
             {
-              name: conversation.other_participant.full_name || conversation.other_participant.username || 'Usuário',
-              avatar: conversation.other_participant.avatar_url,
+              name: conversation.name || conversation.other_participant?.full_name || conversation.other_participant?.username || 'Usuário',
+              avatar: conversation.avatar_url || conversation.other_participant?.avatar_url,
             }
           );
           trackEvent({ eventType: 'video_call_started', eventData: { conversationId: id } });
@@ -524,21 +553,33 @@ const Chat = () => {
           console.log('[Chat] Tentando iniciar chamada de áudio:', {
             conversationId: id,
             isDirectChat,
-            hasOtherParticipant: !!conversation.other_participant,
-            participantInfo: conversation.other_participant
+            isGroup: conversation.type === "group",
+            groupName: conversation.name,
+            memberCount: conversation.member_count,
           });
 
-          // Verificar se é conversa direta
-          if (!isDirectChat) {
+          // Verificar se é grupo "Bem-vindos"
+          if (conversation.type === "group" && conversation.name === "Bem-vindos") {
             toast({
-              title: "Recurso não disponível",
-              description: "Chamadas em grupo ainda não estão disponíveis",
+              title: "Chamadas desabilitadas",
+              description: "Este grupo não suporta chamadas",
               variant: "default",
             });
             return;
           }
 
-          if (!id || !conversation.other_participant) {
+          // Verificar limite de membros em grupos
+          if (conversation.type === "group" && conversation.member_count && conversation.member_count > 10) {
+            toast({
+              title: "Grupo muito grande",
+              description: "Chamadas em grupo são limitadas a 10 participantes",
+              variant: "default",
+            });
+            return;
+          }
+
+          // Para conversa direta
+          if (isDirectChat && !conversation.other_participant) {
             toast({
               title: "Erro ao iniciar chamada",
               description: "Não foi possível identificar o destinatário",
@@ -561,11 +602,11 @@ const Chat = () => {
           }
 
           startCall(
-            id,
+            id!,
             'audio',
             {
-              name: conversation.other_participant.full_name || conversation.other_participant.username || 'Usuário',
-              avatar: conversation.other_participant.avatar_url,
+              name: conversation.name || conversation.other_participant?.full_name || conversation.other_participant?.username || 'Usuário',
+              avatar: conversation.avatar_url || conversation.other_participant?.avatar_url,
             }
           );
           trackEvent({ eventType: 'audio_call_started', eventData: { conversationId: id } });
