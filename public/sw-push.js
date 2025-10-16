@@ -1,6 +1,30 @@
 // Service Worker customizado para notificações push
 // Este arquivo será importado pelo Workbox
 
+// Mapear prioridade para configurações de notificação
+const PRIORITY_SETTINGS = {
+  urgent: {
+    vibrate: [400, 200, 400, 200, 400],
+    requireInteraction: true,
+    silent: false,
+  },
+  high: {
+    vibrate: [200, 100, 200],
+    requireInteraction: false,
+    silent: false,
+  },
+  normal: {
+    vibrate: [200, 100, 200],
+    requireInteraction: false,
+    silent: false,
+  },
+  low: {
+    vibrate: undefined,
+    requireInteraction: false,
+    silent: true,
+  },
+};
+
 self.addEventListener('push', (event) => {
   console.log('Push notification received', event);
 
@@ -14,24 +38,29 @@ self.addEventListener('push', (event) => {
     const notification = data.notification || data;
     
     const title = notification.title || 'Nova mensagem';
+    const priority = notification.data?.priority || 'normal';
+    const prioritySettings = PRIORITY_SETTINGS[priority] || PRIORITY_SETTINGS.normal;
+    
     const options = {
       body: notification.body || 'Você tem uma nova mensagem',
       icon: notification.icon || '/app-icon-192.png',
       badge: notification.badge || '/app-icon-192.png',
       tag: notification.tag || 'nosso-papo-notification',
       data: notification.data || {},
-      vibrate: [200, 100, 200],
-      requireInteraction: false,
-      actions: [
-        {
-          action: 'open',
-          title: 'Abrir',
-        },
-        {
-          action: 'close',
-          title: 'Fechar',
-        },
-      ],
+      renotify: true, // Reagrupar notificações com mesma tag
+      // Aplicar configurações de prioridade
+      vibrate: notification.silent ? undefined : prioritySettings.vibrate,
+      requireInteraction: prioritySettings.requireInteraction,
+      silent: notification.silent || prioritySettings.silent,
+      actions: priority === 'urgent' 
+        ? [
+            { action: 'answer', title: 'Atender' },
+            { action: 'decline', title: 'Recusar' },
+          ]
+        : [
+            { action: 'open', title: 'Abrir' },
+            { action: 'close', title: 'Fechar' },
+          ],
     };
 
     event.waitUntil(

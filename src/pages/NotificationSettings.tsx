@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Checkbox } from '@/components/ui/checkbox';
+import { NotificationCategorySettings } from '@/components/NotificationCategorySettings';
 
 const DIAS_SEMANA = [
   { value: 0, label: 'Dom' },
@@ -306,6 +307,9 @@ const NotificationSettings = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Categorias de notificações */}
+        <NotificationCategorySettings />
 
         {/* Info adicional */}
         <Card className="bg-muted/50">

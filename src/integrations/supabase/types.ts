@@ -305,6 +305,107 @@ export type Database = {
           },
         ]
       }
+      notification_category_preferences: {
+        Row: {
+          category: Database["public"]["Enums"]["notification_category"]
+          created_at: string | null
+          enabled: boolean | null
+          group_similar: boolean | null
+          id: string
+          priority: Database["public"]["Enums"]["notification_priority"] | null
+          sound_enabled: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["notification_category"]
+          created_at?: string | null
+          enabled?: boolean | null
+          group_similar?: boolean | null
+          id?: string
+          priority?: Database["public"]["Enums"]["notification_priority"] | null
+          sound_enabled?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["notification_category"]
+          created_at?: string | null
+          enabled?: boolean | null
+          group_similar?: boolean | null
+          id?: string
+          priority?: Database["public"]["Enums"]["notification_priority"] | null
+          sound_enabled?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_category_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_history: {
+        Row: {
+          body: string
+          category: Database["public"]["Enums"]["notification_category"]
+          conversation_id: string
+          created_at: string | null
+          expires_at: string | null
+          grouped_count: number | null
+          id: string
+          priority: Database["public"]["Enums"]["notification_priority"]
+          sent_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          category: Database["public"]["Enums"]["notification_category"]
+          conversation_id: string
+          created_at?: string | null
+          expires_at?: string | null
+          grouped_count?: number | null
+          id?: string
+          priority: Database["public"]["Enums"]["notification_priority"]
+          sent_at?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          category?: Database["public"]["Enums"]["notification_category"]
+          conversation_id?: string
+          created_at?: string | null
+          expires_at?: string | null
+          grouped_count?: number | null
+          id?: string
+          priority?: Database["public"]["Enums"]["notification_priority"]
+          sent_at?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_history_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           badge_enabled: boolean | null
@@ -356,6 +457,51 @@ export type Database = {
             foreignKeyName: "notification_preferences_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_rate_limit: {
+        Row: {
+          category: Database["public"]["Enums"]["notification_category"]
+          conversation_id: string | null
+          count: number | null
+          created_at: string | null
+          id: string
+          user_id: string
+          window_start: string | null
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["notification_category"]
+          conversation_id?: string | null
+          count?: number | null
+          created_at?: string | null
+          id?: string
+          user_id: string
+          window_start?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["notification_category"]
+          conversation_id?: string | null
+          count?: number | null
+          created_at?: string | null
+          id?: string
+          user_id?: string
+          window_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_rate_limit_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_rate_limit_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -588,6 +734,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_notifications: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       cleanup_typing_indicators: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -606,6 +756,13 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      notification_category:
+        | "messages"
+        | "mentions"
+        | "calls"
+        | "reactions"
+        | "system"
+      notification_priority: "low" | "normal" | "high" | "urgent"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -734,6 +891,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      notification_category: [
+        "messages",
+        "mentions",
+        "calls",
+        "reactions",
+        "system",
+      ],
+      notification_priority: ["low", "normal", "high", "urgent"],
     },
   },
 } as const
