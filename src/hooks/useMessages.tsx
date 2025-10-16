@@ -113,12 +113,20 @@ export const useMessages = (conversationId: string | undefined, userId: string |
 
           // Mark message as delivered
           if (newMessage.sender_id !== userId) {
-            setTimeout(() => {
-              supabase.from("message_status").upsert({
-                message_id: newMessage.id,
-                user_id: userId,
-                status: "delivered",
-              });
+            setTimeout(async () => {
+              if (!userId) return;
+              
+              await supabase
+                .from("message_status")
+                .upsert(
+                  {
+                    message_id: newMessage.id,
+                    user_id: userId,
+                    status: "delivered",
+                    timestamp: new Date().toISOString(),
+                  },
+                  { onConflict: "message_id,user_id" }
+                );
             }, 0);
           }
         }
@@ -189,11 +197,17 @@ export const useMessages = (conversationId: string | undefined, userId: string |
         .eq("id", conversationId);
 
       // Create sent status
-      await supabase.from("message_status").insert({
-        message_id: data.id,
-        user_id: userId,
-        status: "sent",
-      });
+      await supabase
+        .from("message_status")
+        .upsert(
+          {
+            message_id: data.id,
+            user_id: userId,
+            status: "sent",
+            timestamp: new Date().toISOString(),
+          },
+          { onConflict: "message_id,user_id" }
+        );
 
       return data;
     },
