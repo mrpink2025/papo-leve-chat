@@ -16,12 +16,25 @@ interface PushPayload {
     url?: string;
     conversationId?: string;
     messageId?: string;
+    category?: string;
+    priority?: string;
   };
+  silent?: boolean;
+  requireInteraction?: boolean;
 }
 
 interface NotificationRequest {
   recipientId: string;
   payload: PushPayload;
+}
+
+interface DeviceInfo {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  device_name: string | null;
+  last_used_at: string | null;
 }
 
 serve(async (req) => {
@@ -83,9 +96,40 @@ serve(async (req) => {
       );
     }
 
-    // Enviar notificação para cada dispositivo
+    // Priorizar dispositivo mais recente (deduplicação inteligente)
+    const sortedDevices = [...subscriptions].sort((a, b) => {
+      const dateA = new Date(a.last_used_at || 0).getTime();
+      const dateB = new Date(b.last_used_at || 0).getTime();
+      return dateB - dateA; // Mais recente primeiro
+    });
+
+    // Se for notificação urgente, enviar para todos
+    // Senão, enviar apenas para o dispositivo mais recente
+    const devicesToNotify =
+      payload.requireInteraction || payload.data?.priority === "urgent"
+        ? sortedDevices
+        : sortedDevices.slice(0, 1); // Apenas o mais recente
+
+    console.log(
+      `Sending to ${devicesToNotify.length} of ${subscriptions.length} devices`
+    );
+
+    // Calcular badge count (mensagens não lidas)
+    const { count: unreadCount } = await supabase
+      .from("messages")
+      .select("*", { count: "exact", head: true })
+      .eq("conversation_id", payload.data?.conversationId || "")
+      .neq("sender_id", recipientId)
+      .not("id", "in", `(
+        SELECT message_id 
+        FROM message_status 
+        WHERE user_id = '${recipientId}' 
+        AND status IN ('read', 'delivered')
+      )`);
+
+    // Enviar notificação para dispositivos selecionados
     const results = await Promise.allSettled(
-      subscriptions.map(async (subscription) => {
+      devicesToNotify.map(async (subscription) => {
         try {
           // Preparar payload
           const notificationPayload = JSON.stringify({
@@ -95,16 +139,30 @@ serve(async (req) => {
               icon: payload.icon || "/app-icon-192.png",
               badge: payload.badge || "/app-icon-192.png",
               tag: payload.tag || `msg-${Date.now()}`,
-              data: payload.data || {},
+              data: {
+                ...payload.data,
+                url: payload.data?.url || "/",
+                notificationId: `${recipientId}-${Date.now()}`,
+              },
+              silent: payload.silent || false,
+              requireInteraction: payload.requireInteraction || false,
+              renotify: true, // Permitir re-notificação com mesmo tag
             },
+            badge: unreadCount || 0, // Badge count para sincronizar
           });
+
+          // Atualizar last_used_at do dispositivo
+          await supabase
+            .from("push_subscriptions")
+            .update({ last_used_at: new Date().toISOString() })
+            .eq("id", subscription.id);
 
           // Enviar push usando web-push
           // NOTA: Para produção, você precisará usar a biblioteca web-push
           // ou implementar o protocolo VAPID manualmente
-          // Por enquanto, vamos apenas logar
-          console.log(`Sending push to ${subscription.endpoint}`);
-          console.log(`Payload: ${notificationPayload}`);
+          console.log(`Sending push to ${subscription.device_name || "Unknown device"}`);
+          console.log(`Endpoint: ${subscription.endpoint.substring(0, 50)}...`);
+          console.log(`Badge count: ${unreadCount || 0}`);
 
           // TODO: Implementar envio real com web-push
           // await webpush.sendNotification(
@@ -115,21 +173,39 @@ serve(async (req) => {
           //       auth: subscription.auth,
           //     },
           //   },
-          //   notificationPayload
+          //   notificationPayload,
+          //   {
+          //     vapidDetails: {
+          //       subject: 'mailto:your-email@example.com',
+          //       publicKey: VAPID_PUBLIC_KEY,
+          //       privateKey: VAPID_PRIVATE_KEY,
+          //     },
+          //   }
           // );
+
+          // Registrar na história de notificações
+          await supabase.from("notification_history").insert({
+            user_id: recipientId,
+            conversation_id: payload.data?.conversationId,
+            title: payload.title,
+            body: payload.body,
+            category: payload.data?.category || "messages",
+            priority: payload.data?.priority || "normal",
+          });
 
           return { success: true, endpoint: subscription.endpoint };
         } catch (error) {
           console.error(`Failed to send to ${subscription.endpoint}:`, error);
-          
-          // Se o endpoint não é mais válido, remover da base
+
+          // Se o endpoint não é mais válido (410 Gone), remover da base
           if (error instanceof Error && error.message.includes("410")) {
+            console.log(`Removing invalid subscription: ${subscription.id}`);
             await supabase
               .from("push_subscriptions")
               .delete()
               .eq("id", subscription.id);
           }
-          
+
           return { success: false, endpoint: subscription.endpoint, error };
         }
       })

@@ -1,5 +1,18 @@
-// Service Worker customizado para notificações push
+// Service Worker customizado para notificações push com sincronização multi-device
 // Este arquivo será importado pelo Workbox
+
+// Variável global para tracking de notificações (deduplicação)
+let notificationDedupeCache = new Map();
+
+// Limpar cache de deduplicação a cada 5 minutos
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, timestamp] of notificationDedupeCache.entries()) {
+    if (now - timestamp > 60000) { // 1 minuto
+      notificationDedupeCache.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
 
 // Mapear prioridade para configurações de notificação
 const PRIORITY_SETTINGS = {
@@ -25,6 +38,48 @@ const PRIORITY_SETTINGS = {
   },
 };
 
+// Escutar mensagens para sincronização de badges
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'BADGE_UPDATE') {
+    const { count, userId } = event.data;
+    
+    // Atualizar badge
+    if (self.registration?.setAppBadge) {
+      if (count > 0) {
+        self.registration.setAppBadge(count);
+      } else {
+        self.registration.clearAppBadge();
+      }
+    }
+    
+    // Broadcast para outras tabs
+    self.clients.matchAll({ type: 'window' }).then(clients => {
+      clients.forEach(client => {
+        client.postMessage({
+          type: 'BADGE_SYNC',
+          count,
+          userId
+        });
+      });
+    });
+  }
+  // Manter compatibilidade com mensagens antigas
+  else if (event.data?.type === 'SET_BADGE') {
+    if ('setAppBadge' in self.registration) {
+      self.registration.setAppBadge(event.data.count).catch((error) => {
+        console.error('Error setting app badge:', error);
+      });
+    }
+  } else if (event.data?.type === 'CLEAR_BADGE') {
+    if ('clearAppBadge' in self.registration) {
+      self.registration.clearAppBadge().catch((error) => {
+        console.error('Error clearing app badge:', error);
+      });
+    }
+  }
+});
+
+// Ouvir notificações push
 self.addEventListener('push', (event) => {
   console.log('Push notification received', event);
 
@@ -35,23 +90,43 @@ self.addEventListener('push', (event) => {
 
   try {
     const data = event.data.json();
-    const notification = data.notification || data;
+    const { notification, badge } = data;
+    
+    // Deduplicação: verificar se já mostramos esta notificação
+    const notifId = notification.data?.notificationId;
+    if (notifId) {
+      const lastShown = notificationDedupeCache.get(notifId);
+      if (lastShown && (Date.now() - lastShown < 5000)) {
+        console.log('Notificação duplicada ignorada:', notifId);
+        return;
+      }
+      notificationDedupeCache.set(notifId, Date.now());
+    }
+    
+    // Atualizar badge com o contador recebido
+    if (badge !== undefined && self.registration?.setAppBadge) {
+      if (badge > 0) {
+        self.registration.setAppBadge(badge);
+      } else {
+        self.registration.clearAppBadge();
+      }
+    }
     
     const title = notification.title || 'Nova mensagem';
     const priority = notification.data?.priority || 'normal';
     const prioritySettings = PRIORITY_SETTINGS[priority] || PRIORITY_SETTINGS.normal;
     
-    const options = {
+    // Configurações baseadas na prioridade
+    const notificationOptions = {
       body: notification.body || 'Você tem uma nova mensagem',
       icon: notification.icon || '/app-icon-192.png',
       badge: notification.badge || '/app-icon-192.png',
       tag: notification.tag || 'nosso-papo-notification',
       data: notification.data || {},
-      renotify: true, // Reagrupar notificações com mesma tag
-      // Aplicar configurações de prioridade
-      vibrate: notification.silent ? undefined : prioritySettings.vibrate,
-      requireInteraction: prioritySettings.requireInteraction,
+      renotify: notification.renotify || false,
       silent: notification.silent || prioritySettings.silent,
+      requireInteraction: notification.requireInteraction || prioritySettings.requireInteraction,
+      vibrate: notification.silent ? [] : (prioritySettings.vibrate || [200, 100, 200]),
       actions: priority === 'urgent' 
         ? [
             { action: 'answer', title: 'Atender' },
@@ -64,71 +139,92 @@ self.addEventListener('push', (event) => {
     };
 
     event.waitUntil(
-      self.registration.showNotification(title, options)
+      Promise.all([
+        // Mostrar notificação
+        self.registration.showNotification(title, notificationOptions),
+        
+        // Notificar todas as tabs abertas para sincronização
+        self.clients.matchAll({ type: 'window' }).then(clients => {
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'NOTIFICATION_RECEIVED',
+              notification: notification,
+              badge: badge,
+            });
+          });
+        })
+      ])
     );
   } catch (error) {
     console.error('Error processing push notification:', error);
   }
 });
 
+// Lidar com cliques em notificações
 self.addEventListener('notificationclick', (event) => {
   console.log('Notification clicked', event);
   
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || '/app';
-  
   // Se a ação é fechar, não fazer nada
-  if (event.action === 'close') {
+  if (event.action === 'close' || event.action === 'decline') {
     return;
   }
 
-  // Abrir ou focar na janela existente
+  const urlToOpen = event.notification.data?.url || '/app';
+  const conversationId = event.notification.data?.conversationId;
+
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        // Verificar se já existe uma janela aberta
-        for (let i = 0; i < clientList.length; i++) {
-          const client = clientList[i];
-          if (client.url.includes('/app') && 'focus' in client) {
-            return client.focus().then((client) => {
-              // Navegar para a URL correta se necessário
-              if (event.notification.data?.conversationId) {
-                return client.navigate(
-                  `/chat/${event.notification.data.conversationId}`
-                );
-              }
-              return client;
-            });
+    Promise.all([
+      // Abrir ou focar na janela
+      clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then((windowClients) => {
+          // Verificar se já existe uma janela aberta
+          for (const client of windowClients) {
+            if (client.url.includes(urlToOpen) && 'focus' in client) {
+              return client.focus().then(focusedClient => {
+                // Notificar a tab que a notificação foi clicada
+                focusedClient.postMessage({
+                  type: 'NOTIFICATION_CLICKED',
+                  conversationId: conversationId,
+                });
+                
+                // Navegar para a conversa se necessário
+                if (conversationId && focusedClient.navigate) {
+                  return focusedClient.navigate(`/chat/${conversationId}`);
+                }
+                return focusedClient;
+              });
+            }
           }
-        }
-        
-        // Se não existe janela aberta, abrir nova
-        if (clients.openWindow) {
-          return clients.openWindow(urlToOpen);
+          // Senão, abrir nova janela
+          if (clients.openWindow) {
+            const targetUrl = conversationId 
+              ? `/chat/${conversationId}` 
+              : urlToOpen;
+            return clients.openWindow(targetUrl);
+          }
+        }),
+      
+      // Limpar badge se não houver mais notificações
+      self.registration.getNotifications().then(notifications => {
+        if (notifications.length === 0 && self.registration?.clearAppBadge) {
+          self.registration.clearAppBadge();
         }
       })
+    ])
   );
 });
 
 self.addEventListener('notificationclose', (event) => {
   console.log('Notification closed', event);
-  // Analytics ou limpeza se necessário
-});
-
-// Badge API para contador de notificações
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SET_BADGE') {
-    if ('setAppBadge' in navigator) {
-      navigator.setAppBadge(event.data.count).catch((error) => {
-        console.error('Error setting app badge:', error);
-      });
-    }
-  } else if (event.data && event.data.type === 'CLEAR_BADGE') {
-    if ('clearAppBadge' in navigator) {
-      navigator.clearAppBadge().catch((error) => {
-        console.error('Error clearing app badge:', error);
-      });
-    }
-  }
+  
+  // Verificar se ainda há notificações e atualizar badge
+  event.waitUntil(
+    self.registration.getNotifications().then(notifications => {
+      if (notifications.length === 0 && self.registration?.clearAppBadge) {
+        self.registration.clearAppBadge();
+      }
+    })
+  );
 });
