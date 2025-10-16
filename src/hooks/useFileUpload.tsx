@@ -74,12 +74,34 @@ export const useFileUpload = () => {
 
       if (uploadError) throw uploadError;
 
-      // Get signed URL with 1 hour expiration
-      const { data: signedData, error: signedError } = await supabase.storage
-        .from(bucket)
-        .createSignedUrl(fileName, 3600);
+      // Wait for file to be indexed
+      await new Promise(resolve => setTimeout(resolve, 150));
 
-      if (signedError) throw signedError;
+      // Retry logic for signed URL creation
+      let signedData = null;
+      let signedError = null;
+      let retries = 3;
+
+      while (retries > 0 && !signedData) {
+        const result = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(fileName, 3600);
+        
+        if (result.data) {
+          signedData = result.data;
+          break;
+        }
+        
+        if (result.error) {
+          signedError = result.error;
+          retries--;
+          if (retries > 0) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+      }
+
+      if (signedError && !signedData) throw signedError;
 
       return signedData.signedUrl;
     } catch (error: any) {
