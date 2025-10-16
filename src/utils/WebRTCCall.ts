@@ -48,6 +48,7 @@ export class WebRTCCall {
   public onLocalStream?: (stream: MediaStream) => void;
   public onError?: (error: Error) => void;
   public onConnectionQuality?: (quality: 'good' | 'medium' | 'poor') => void;
+  public onCallEnded?: () => void;
 
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 3;
@@ -199,6 +200,9 @@ export class WebRTCCall {
 
     // Receber tracks remotos
     this.remoteStream = new MediaStream();
+    
+    let remoteStreamCallbackTimer: NodeJS.Timeout | null = null;
+    
     this.peerConnection.ontrack = (event) => {
       console.log('[WebRTC] Track remoto recebido:', event.track.kind);
       
@@ -221,8 +225,25 @@ export class WebRTCCall {
         });
       }
       
-      if (this.onRemoteStream) {
-        this.onRemoteStream(this.remoteStream);
+      // ✅ Disparar callback apenas quando tivermos todos os tracks esperados
+      const expectedTracks = this.callType === 'video' ? 2 : 1;
+      const currentTracks = this.remoteStream!.getTracks().length;
+      
+      if (currentTracks >= expectedTracks) {
+        console.log('[WebRTC] ✅ Todos os tracks recebidos, disparando onRemoteStream');
+        if (this.onRemoteStream) {
+          this.onRemoteStream(this.remoteStream);
+        }
+      } else {
+        // Fallback: disparar após 100ms caso não receba todos os tracks
+        if (remoteStreamCallbackTimer) clearTimeout(remoteStreamCallbackTimer);
+        remoteStreamCallbackTimer = setTimeout(() => {
+          const tracks = this.remoteStream!.getTracks().length;
+          console.log(`[WebRTC] ⏰ Fallback timeout: ${tracks} track(s) recebido(s), disparando onRemoteStream`);
+          if (this.onRemoteStream && tracks > 0) {
+            this.onRemoteStream(this.remoteStream);
+          }
+        }, 100);
       }
     };
 
@@ -489,6 +510,15 @@ export class WebRTCCall {
           this.end();
           break;
         case 'end-call':
+          this.logEvent('CALL_ENDED_REASON', { reason: 'remote_hangup' });
+          console.log('[WebRTC] 📞 Chamada encerrada pelo outro usuário');
+          this.updateStatus('ended');
+          
+          // ✅ Chamar callback antes de limpar recursos
+          if (this.onCallEnded) {
+            this.onCallEnded();
+          }
+          
           this.end();
           break;
       }

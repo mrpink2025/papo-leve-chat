@@ -114,6 +114,11 @@ export const useNativeVideoCall = () => {
         setCallState(prev => ({ ...prev, remoteStream: stream }));
       };
 
+      call.onCallEnded = () => {
+        console.log('[useNativeVideoCall] Chamada encerrada remotamente');
+        endCall();
+      };
+
       call.onConnectionQuality = (quality) => {
         setCallState(prev => ({ ...prev, connectionQuality: quality }));
         
@@ -210,6 +215,11 @@ export const useNativeVideoCall = () => {
           }))
         });
         setCallState(prev => ({ ...prev, remoteStream: stream }));
+      };
+
+      call.onCallEnded = () => {
+        console.log('[useNativeVideoCall] Chamada encerrada remotamente (callee)');
+        endCall();
       };
 
       call.onConnectionQuality = (quality) => {

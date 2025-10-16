@@ -53,7 +53,24 @@ export const NativeCallDialog = ({
   // Configurar stream remoto
   useEffect(() => {
     if (remoteVideoRef.current && callState.remoteStream) {
+      console.log('[NativeCallDialog] 🔊 Configurando stream remoto:', {
+        audioTracks: callState.remoteStream.getAudioTracks().length,
+        videoTracks: callState.remoteStream.getVideoTracks().length,
+        active: callState.remoteStream.active,
+        tracks: callState.remoteStream.getTracks().map(t => ({
+          kind: t.kind,
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState
+        }))
+      });
+      
       remoteVideoRef.current.srcObject = callState.remoteStream;
+      
+      // Forçar play em mobile
+      remoteVideoRef.current.play().catch(e => {
+        console.warn('[NativeCallDialog] Erro ao dar play automático:', e);
+      });
     }
   }, [callState.remoteStream]);
 
@@ -219,6 +236,16 @@ export const NativeCallDialog = ({
                   className="w-full h-full object-cover"
                 />
               </motion.div>
+
+            {/* Áudio remoto (invisível, para chamadas de áudio) */}
+            {callState.callType === 'audio' && (
+              <audio
+                ref={remoteVideoRef as any}
+                autoPlay
+                playsInline
+                className="hidden"
+              />
+            )}
           </div>
 
           {/* Controles inferiores */}
