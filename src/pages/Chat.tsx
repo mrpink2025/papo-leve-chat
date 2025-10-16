@@ -8,6 +8,7 @@ import DateSeparator from "@/components/DateSeparator";
 import SearchMessages from "@/components/SearchMessages";
 import { NativeCallDialog } from "@/components/NativeCallDialog";
 import { IncomingNativeCallDialog } from "@/components/IncomingNativeCallDialog";
+import ProfileViewDialog from "@/components/ProfileViewDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessages } from "@/hooks/useMessages";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
@@ -46,6 +47,13 @@ const Chat = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [replyToMessage, setReplyToMessage] = useState<{ id: string; content: string } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<{
+    id: string;
+    name: string;
+    avatar?: string;
+    bio?: string;
+  } | null>(null);
 
   const { data: conversation } = useQuery<ConversationData>({
     queryKey: ["conversation", id],
@@ -178,17 +186,66 @@ const Chat = () => {
     }
   };
 
-  const handleOpenProfile = (userId: string) => {
-    console.log('[Chat] Abrir perfil do usuário:', userId);
-    // TODO: Implementar ProfileViewDialog
-    toast({
-      title: "Em breve",
-      description: "Visualização de perfil será implementada em breve",
-    });
+  const handleOpenProfile = async (userId: string) => {
+    try {
+      console.log('[Chat] Abrir perfil do usuário:', userId);
+      
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('id, username, full_name, avatar_url, bio')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (error) throw error;
+      
+      if (!profile) {
+        toast({
+          title: "Erro",
+          description: "Perfil não encontrado",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setSelectedProfile({
+        id: profile.id,
+        name: profile.full_name || profile.username || 'Usuário',
+        avatar: profile.avatar_url || undefined,
+        bio: profile.bio || undefined,
+      });
+      setProfileDialogOpen(true);
+    } catch (error) {
+      console.error('[Chat] Erro ao buscar perfil:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar o perfil",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSendPrivateMessage = async (userId: string) => {
     try {
+      // Validação 1: Não pode enviar mensagem para si mesmo
+      if (userId === user?.id) {
+        toast({
+          title: "Ação inválida",
+          description: "Você não pode enviar mensagem para si mesmo",
+          variant: "default",
+        });
+        return;
+      }
+      
+      // Validação 2: Se já está em conversa direta com essa pessoa, não fazer nada
+      if (conversation.type === 'direct' && conversation.other_participant?.id === userId) {
+        toast({
+          title: "Você já está conversando",
+          description: "Esta já é a conversa com esta pessoa",
+          variant: "default",
+        });
+        return;
+      }
+      
       console.log('[Chat] Criar conversa privada com:', userId);
       
       // Buscar conversas diretas do usuário atual
@@ -270,11 +327,13 @@ const Chat = () => {
       console.log('[Chat] Iniciar chamada de áudio com:', userId);
       
       // Buscar perfil do usuário
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('username, full_name, avatar_url')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
+      
+      if (profileError) throw profileError;
       
       if (!profile) {
         toast({
@@ -320,11 +379,13 @@ const Chat = () => {
       console.log('[Chat] Iniciar chamada de vídeo com:', userId);
       
       // Buscar perfil do usuário
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('username, full_name, avatar_url')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
+      
+      if (profileError) throw profileError;
       
       if (!profile) {
         toast({
@@ -614,6 +675,19 @@ const Chat = () => {
         onTyping={setTyping}
         replyTo={replyToMessage}
         onCancelReply={() => setReplyToMessage(null)}
+      />
+
+      {/* Dialog de perfil */}
+      <ProfileViewDialog
+        open={profileDialogOpen}
+        onClose={() => {
+          setProfileDialogOpen(false);
+          setSelectedProfile(null);
+        }}
+        name={selectedProfile?.name || ''}
+        avatarUrl={selectedProfile?.avatar}
+        bio={selectedProfile?.bio}
+        isGroup={false}
       />
     </div>
   );
