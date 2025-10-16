@@ -16,24 +16,6 @@ export const useAuth = () => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-
-        if (event === "SIGNED_IN") {
-          // Buscar o grupo Bem-vindos para redirecionar novos usuários
-          setTimeout(async () => {
-            const { data: welcomeGroup } = await supabase
-              .from('conversations')
-              .select('id')
-              .eq('name', 'Bem-vindos')
-              .eq('type', 'group')
-              .maybeSingle();
-            
-            if (welcomeGroup) {
-              navigate(`/chat/${welcomeGroup.id}`);
-            } else {
-              navigate("/");
-            }
-          }, 0);
-        }
       }
     );
 
