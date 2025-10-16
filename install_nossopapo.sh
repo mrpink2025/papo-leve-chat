@@ -132,17 +132,37 @@ success "Bun instalado"
 log "📥 Clonando repositório oficial..."
 if [ -d "${APP_DIR}/src" ]; then
     log "Repositório já existe, fazendo pull..."
-    cd "$APP_DIR"
-    git pull >> "$INSTALL_LOG" 2>&1
+    cd "$APP_DIR" || error "Não foi possível acessar $APP_DIR"
+    if ! git pull >> "$INSTALL_LOG" 2>&1; then
+        error "Falha ao atualizar repositório. Verifique conexão com GitHub."
+    fi
 else
-    git clone "$REPO_URL" "$APP_DIR" >> "$INSTALL_LOG" 2>&1
+    # Limpar diretório se existir mas estiver incompleto
+    if [ -d "$APP_DIR" ] && [ "$(ls -A $APP_DIR 2>/dev/null)" ]; then
+        warning "Diretório existe mas pode estar incompleto. Limpando..."
+        rm -rf "${APP_DIR:?}/"*
+    fi
+    
+    log "Clonando de $REPO_URL..."
+    if ! git clone "$REPO_URL" "$APP_DIR" >> "$INSTALL_LOG" 2>&1; then
+        error "Falha ao clonar repositório de $REPO_URL. Verifique: 1) Conexão com internet 2) Acesso ao GitHub 3) URL do repositório"
+    fi
 fi
-cd "$APP_DIR"
-success "Repositório clonado"
+
+cd "$APP_DIR" || error "Não foi possível acessar $APP_DIR"
+
+# Verificar se o clone foi bem-sucedido
+if [ ! -f "package.json" ]; then
+    error "Repositório clonado mas package.json não encontrado. Clone pode estar incompleto."
+fi
+
+success "Repositório clonado e verificado"
 
 # Instalar dependências do projeto
 log "📦 Instalando dependências do projeto..."
-bun install >> "$INSTALL_LOG" 2>&1
+if ! bun install >> "$INSTALL_LOG" 2>&1; then
+    error "Falha ao instalar dependências do projeto. Verifique $INSTALL_LOG para detalhes."
+fi
 success "Dependências do projeto instaladas"
 
 # Configurar .env
@@ -161,8 +181,16 @@ fi
 
 # Build do projeto
 log "🔨 Building projeto..."
-bun run build >> "$INSTALL_LOG" 2>&1
-success "Build concluído"
+if ! bun run build >> "$INSTALL_LOG" 2>&1; then
+    error "Falha no build do projeto. Verifique $INSTALL_LOG para detalhes."
+fi
+
+# Verificar se o build gerou os arquivos
+if [ ! -d "${APP_DIR}/dist" ] || [ ! -f "${APP_DIR}/dist/index.html" ]; then
+    error "Build concluído mas diretório dist não foi gerado corretamente."
+fi
+
+success "Build concluído e verificado"
 
 # Configurar Nginx
 log "🌐 Configurando Nginx..."
