@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import logo from "@/assets/nosso-papo-logo.png";
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -52,8 +53,11 @@ const Index = () => {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <div className="bg-card border-b border-border p-4 flex items-center justify-between shadow-sm">
-        <h1 className="text-2xl font-bold text-primary">Nosso Papo</h1>
+      <div className="bg-card border-b border-border px-6 py-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3">
+          <img src={logo} alt="Nosso Papo" className="h-10 w-10 object-contain" />
+          <h1 className="text-2xl font-bold text-primary tracking-tight">Nosso Papo</h1>
+        </div>
         <div className="flex gap-2">
           <ThemeToggle />
           <CreateGroupDialog />
