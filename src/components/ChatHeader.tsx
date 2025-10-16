@@ -8,9 +8,11 @@ interface ChatHeaderProps {
   avatar?: string;
   online?: boolean;
   lastSeen?: string;
+  onVideoCall?: () => void;
+  onAudioCall?: () => void;
 }
 
-const ChatHeader = ({ name, avatar, online = false, lastSeen }: ChatHeaderProps) => {
+const ChatHeader = ({ name, avatar, online = false, lastSeen, onVideoCall, onAudioCall }: ChatHeaderProps) => {
   const navigate = useNavigate();
 
   return (
@@ -41,6 +43,7 @@ const ChatHeader = ({ name, avatar, online = false, lastSeen }: ChatHeaderProps)
         <Button
           variant="ghost"
           size="icon"
+          onClick={onVideoCall}
           className="text-chat-header-foreground hover:bg-secondary/50"
         >
           <Video size={20} />
@@ -48,6 +51,7 @@ const ChatHeader = ({ name, avatar, online = false, lastSeen }: ChatHeaderProps)
         <Button
           variant="ghost"
           size="icon"
+          onClick={onAudioCall}
           className="text-chat-header-foreground hover:bg-secondary/50"
         >
           <Phone size={20} />

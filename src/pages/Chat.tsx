@@ -4,10 +4,12 @@ import ChatHeader from "@/components/ChatHeader";
 import MessageBubble from "@/components/MessageBubble";
 import MessageInput from "@/components/MessageInput";
 import TypingIndicator from "@/components/TypingIndicator";
+import { VideoCallDialog } from "@/components/VideoCallDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessages } from "@/hooks/useMessages";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { useMessageActions } from "@/hooks/useMessageActions";
+import { useVideoCall } from "@/hooks/useVideoCall";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -82,6 +84,7 @@ const Chat = () => {
   const { messages, sendMessage } = useMessages(id, user?.id);
   const { typingUsers, setTyping } = useTypingIndicator(id || "", user?.id || "");
   const { editMessage, deleteMessage } = useMessageActions(id || "");
+  const { callState, startCall, endCall } = useVideoCall();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -144,6 +147,15 @@ const Chat = () => {
         avatar={displayAvatar}
         online={isOnline}
         lastSeen={lastSeen}
+        onVideoCall={() => id && startCall(id, true)}
+        onAudioCall={() => id && startCall(id, false)}
+      />
+
+      <VideoCallDialog
+        open={callState.isInCall}
+        onClose={endCall}
+        roomName={callState.roomName || ""}
+        displayName={user?.email?.split('@')[0] || "Usuário"}
       />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-chat-pattern">
