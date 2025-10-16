@@ -314,6 +314,11 @@ export class WebRTCCall {
         case 'ice-candidate':
           await this.handleIceCandidate(signal);
           break;
+        case 'call-rejected':
+          this.logEvent('CALL_ENDED_REASON', { reason: 'rejected' });
+          this.updateStatus('ended');
+          this.end();
+          break;
         case 'end-call':
           this.end();
           break;

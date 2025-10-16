@@ -27,7 +27,7 @@ export const useIncomingCalls = (userId: string | undefined) => {
 
     // Escutar por novas chamadas via Supabase Realtime
     const callsChannel = supabase
-      .channel('call_notifications')
+      .channel(`user:${userId}:calls`)
       .on(
         'postgres_changes',
         {
@@ -104,11 +104,17 @@ export const useIncomingCalls = (userId: string | undefined) => {
           }
         }
       )
-      // ✅ FASE 3: Fallback via broadcast (notificação instantânea)
+      // ✅ FASE 3: Fallback via broadcast (notificação instantânea) - canal por usuário
       .on('broadcast', { event: 'incoming-call' }, (payload) => {
         console.log('[useIncomingCalls] 🔔 Chamada recebida via broadcast:', payload);
         
-        const { callId, callerId, callerName, callerAvatar, conversationId, callType } = payload.payload;
+        const { recipientId, callId, callerId, callerName, callerAvatar, conversationId, callType } = payload.payload;
+        
+        // ✅ Filtro de segurança: só processar se for realmente para este usuário
+        if (recipientId !== userId) {
+          console.log('[useIncomingCalls] ⚠️ Broadcast ignorado: não é para este usuário');
+          return;
+        }
         
         const incomingCallData: IncomingCall = {
           callId,

@@ -58,7 +58,13 @@ export const useNativeVideoCall = () => {
 
       console.log(`[useNativeVideoCall] Iniciando chamada ${callType} para conversa ${conversationId}`);
 
-      const call = new WebRTCCall(conversationId, user.id, callType, true);
+      // ✅ FASE 1: Registrar chamada no banco de dados PRIMEIRO para obter callId
+      const dbCallId = await registerCallInDatabase(conversationId, user.id, callType);
+      
+      console.log('[useNativeVideoCall] CALL_INIT_WITH_DB_ID:', { callId: dbCallId, channel: `call:${dbCallId}` });
+
+      // ✅ FASE 2: Criar WebRTCCall com o callId do banco
+      const call = new WebRTCCall(conversationId, user.id, callType, true, dbCallId);
 
       // Configurar callbacks
       call.onStatusChange = (status) => {
@@ -126,16 +132,13 @@ export const useNativeVideoCall = () => {
       setCallState(prev => ({
         ...prev,
         isInCall: true,
-        callId: call.getCallId(),
+        callId: dbCallId,
         conversationId,
         callType,
         isInitiator: true,
         status: 'calling',
         remoteUserInfo,
       }));
-
-      // Registrar chamada no banco de dados
-      await registerCallInDatabase(conversationId, user.id, callType);
 
       // Iniciar chamada
       await call.start();
@@ -356,14 +359,15 @@ export const useNativeVideoCall = () => {
       
       console.log('[useNativeVideoCall] Chamada registrada com sucesso:', callNotification);
       
-      // ✅ FASE 3: Enviar broadcast PRIMEIRO (fallback instantâneo)
+      // ✅ FASE 3: Enviar broadcast em canal por usuário (seguro)
       try {
         console.log('[useNativeVideoCall] 🔔 Enviando broadcast para:', recipientId);
-        const broadcastChannel = supabase.channel(`call_notifications`);
+        const broadcastChannel = supabase.channel(`user:${recipientId}:calls`);
         await broadcastChannel.send({
           type: 'broadcast',
           event: 'incoming-call',
           payload: {
+            recipientId: recipientId, // ✅ Filtro de segurança
             callId: callNotification.id,
             callerId: callerId,
             callerName: callerName,
