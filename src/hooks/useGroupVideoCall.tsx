@@ -48,8 +48,8 @@ export const useGroupVideoCall = () => {
       
       console.log('[useGroupVideoCall] Iniciando chamada em grupo:', { conversationId, callType, participantCount: participantIds.length });
       
-      const sessionId = `group_call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const call = new GroupWebRTCCall(conversationId, user.id, callType, true, sessionId);
+      // Não passar sessionId, será gerado pelo banco
+      const call = new GroupWebRTCCall(conversationId, user.id, callType, true);
       
       // Configurar callbacks
       call.onStateChange = (state) => {
@@ -120,9 +120,13 @@ export const useGroupVideoCall = () => {
       
       groupCallRef.current = call;
       
+      // Pegar sessionId (UUID) após criação
+      const generatedSessionId = call.getSessionId();
+      console.log('[useGroupVideoCall] SessionId gerado:', generatedSessionId);
+      
       setCallState({
         isInCall: true,
-        sessionId,
+        sessionId: generatedSessionId,
         conversationId,
         callType,
         isHost: true,

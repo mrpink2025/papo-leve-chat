@@ -59,9 +59,11 @@ export class GroupWebRTCCall {
     this.userId = userId;
     this.callType = callType;
     this.isHost = isHost;
-    this.sessionId = sessionId || `group_call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Host: sessionId será setado após criar a sessão no banco (UUID retornado)
+    // Participante: recebe o sessionId existente
+    this.sessionId = sessionId || '';
     
-    console.log('[GroupWebRTCCall] Criado:', { sessionId: this.sessionId, isHost, callType });
+    console.log('[GroupWebRTCCall] Criado:', { sessionId: this.sessionId || 'pending', isHost, callType });
   }
   
   // Iniciar chamada (host) ou entrar (participante)
@@ -72,14 +74,13 @@ export class GroupWebRTCCall {
       // 1. Capturar mídia local
       await this.setupLocalMedia();
       
-      // 2. Configurar canal de sinalização
-      await this.setupSignalingChannel();
-      
-      // 3. Se host: criar sessão + convidar participantes
+      // 2. Se host: criar sessão primeiro (para gerar UUID) e depois canal
       if (this.isHost && participantIds) {
         await this.createSession(participantIds);
+        await this.setupSignalingChannel();
       } else {
-        // Participante entrando: buscar sessão existente
+        // Participante: já tem sessionId, configura canal e entra
+        await this.setupSignalingChannel();
         await this.joinSession();
       }
     } catch (error) {
@@ -126,20 +127,24 @@ export class GroupWebRTCCall {
     console.log('[GroupWebRTCCall] Criando sessão...', { participantIds });
     
     try {
-      // Inserir sessão no banco
+      // Inserir sessão no banco SEM id (deixar Postgres gerar UUID)
       const { data: session, error: sessionError } = await supabase
         .from('group_call_sessions')
         .insert({
-          id: this.sessionId,
           conversation_id: this.conversationId,
           call_type: this.callType,
           created_by: this.userId,
           state: 'DIALING'
         })
-        .select()
+        .select('id')
         .single();
       
       if (sessionError) throw sessionError;
+      if (!session) throw new Error('Falha ao criar sessão');
+      
+      // Setar o sessionId com o UUID retornado
+      this.sessionId = session.id;
+      console.log('[GroupWebRTCCall] Sessão criada com UUID:', this.sessionId);
       
       // Inserir host como JOINED
       await supabase.from('group_call_participants').insert({
