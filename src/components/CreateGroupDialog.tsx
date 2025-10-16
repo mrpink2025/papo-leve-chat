@@ -25,6 +25,7 @@ export const CreateGroupDialog = () => {
   const [open, setOpen] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
 
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts", user?.id],
@@ -54,23 +55,84 @@ export const CreateGroupDialog = () => {
   });
 
   const handleCreateGroup = async () => {
-    if (!groupName.trim() || selectedUsers.length === 0 || !user?.id) {
-      toast.error("Preencha o nome e selecione pelo menos um contato");
+    console.log('[CreateGroup] Iniciando criação de grupo');
+    console.log('[CreateGroup] Estado inicial:', {
+      groupName: groupName.trim(),
+      selectedUsersCount: selectedUsers.length,
+      userId: user?.id,
+      hasSession: !!user
+    });
+
+    // Validações robustas
+    if (!user?.id) {
+      toast.error("Usuário não autenticado");
       return;
     }
 
+    const trimmedName = groupName.trim();
+    if (!trimmedName) {
+      toast.error("Nome do grupo é obrigatório");
+      return;
+    }
+
+    if (selectedUsers.length === 0) {
+      toast.error("Selecione pelo menos um contato");
+      return;
+    }
+
+    // Validar que todos os IDs são UUIDs válidos
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const invalidIds = selectedUsers.filter(id => !uuidRegex.test(id));
+    if (invalidIds.length > 0) {
+      console.error('[CreateGroup] IDs inválidos:', invalidIds);
+      toast.error("Erro: IDs de contatos inválidos");
+      return;
+    }
+
+    setIsCreating(true);
+    
     try {
+      // Verificar sessão antes de criar
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('[CreateGroup] Verificação de sessão:', {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        error: sessionError
+      });
+
+      if (!session) {
+        toast.error("Sessão expirada. Faça login novamente.");
+        return;
+      }
+
+      console.log('[CreateGroup] Inserindo conversa:', {
+        type: 'group',
+        name: trimmedName,
+        created_by: user.id
+      });
+
       const { data: conversation, error: convError } = await supabase
         .from("conversations")
         .insert({
           type: "group",
-          name: groupName,
+          name: trimmedName,
           created_by: user.id,
         })
         .select()
         .single();
 
-      if (convError) throw convError;
+      if (convError) {
+        console.error('[CreateGroup] ❌ Erro ao criar conversa:', {
+          error: convError,
+          code: convError.code,
+          message: convError.message,
+          details: convError.details,
+          hint: convError.hint
+        });
+        throw convError;
+      }
+
+      console.log('[CreateGroup] ✅ Conversa criada:', conversation);
 
       const participants = [
         { conversation_id: conversation.id, user_id: user.id, role: "admin" },
@@ -81,19 +143,36 @@ export const CreateGroupDialog = () => {
         })),
       ];
 
+      console.log('[CreateGroup] Adicionando participantes:', participants.length);
+
       const { error: partError } = await supabase
         .from("conversation_participants")
         .insert(participants);
 
-      if (partError) throw partError;
+      if (partError) {
+        console.error('[CreateGroup] ❌ Erro ao adicionar participantes:', {
+          error: partError,
+          code: partError.code,
+          message: partError.message,
+          details: partError.details,
+          hint: partError.hint
+        });
+        throw partError;
+      }
 
+      console.log('[CreateGroup] ✅ Grupo criado com sucesso');
+      console.log('[CreateGroup] Navegando para: /app/chat/' + conversation.id);
+      
       toast.success("Grupo criado!");
       setOpen(false);
       setGroupName("");
       setSelectedUsers([]);
-      navigate(`/chat/${conversation.id}`);
-    } catch (error) {
-      toast.error("Erro ao criar grupo");
+      navigate(`/app/chat/${conversation.id}`);
+    } catch (error: any) {
+      console.error('[CreateGroup] ❌ Erro final:', error);
+      toast.error(error.message || "Erro ao criar grupo");
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -158,8 +237,12 @@ export const CreateGroupDialog = () => {
             </ScrollArea>
           </div>
 
-          <Button onClick={handleCreateGroup} className="w-full">
-            Criar grupo
+          <Button 
+            onClick={handleCreateGroup} 
+            className="w-full"
+            disabled={isCreating}
+          >
+            {isCreating ? "Criando..." : "Criar grupo"}
           </Button>
         </div>
       </DialogContent>
