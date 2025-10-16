@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Settings, Archive, LogOut, Download } from "lucide-react";
+import { Search, Settings, Archive, LogOut, Download, Users } from "lucide-react";
 import ChatListItem from "@/components/ChatListItem";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { StoriesList } from "@/components/StoriesList";
@@ -78,10 +78,20 @@ const Index = () => {
               size="icon"
               onClick={handleInstall}
               title="Instalar App"
+              className="text-muted-foreground hover:text-primary"
             >
               <Download className="h-5 w-5" />
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/app/contatos")}
+            title="Contatos"
+            className="text-muted-foreground hover:text-primary"
+          >
+            <Users className="h-5 w-5" />
+          </Button>
           <ThemeToggle />
           <CreateGroupDialog />
           <Button variant="ghost" size="icon" onClick={() => navigate("/app/configuracoes")} title="Configurações">

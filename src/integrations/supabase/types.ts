@@ -552,6 +552,48 @@ export type Database = {
           },
         ]
       }
+      privacy_settings: {
+        Row: {
+          created_at: string | null
+          id: string
+          read_receipts: boolean | null
+          show_last_seen: boolean | null
+          updated_at: string | null
+          user_id: string
+          who_can_add_me: string | null
+          who_can_call_me: string | null
+          who_can_see_avatar: string | null
+          who_can_see_bio: string | null
+          who_can_see_status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          read_receipts?: boolean | null
+          show_last_seen?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          who_can_add_me?: string | null
+          who_can_call_me?: string | null
+          who_can_see_avatar?: string | null
+          who_can_see_bio?: string | null
+          who_can_see_status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          read_receipts?: boolean | null
+          show_last_seen?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          who_can_add_me?: string | null
+          who_can_call_me?: string | null
+          who_can_see_avatar?: string | null
+          who_can_see_bio?: string | null
+          who_can_see_status?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -824,6 +866,10 @@ export type Database = {
       }
     }
     Functions: {
+      can_interact_with_user: {
+        Args: { interaction_type: string; target_user_id: string }
+        Returns: boolean
+      }
       cleanup_expired_notifications: {
         Args: Record<PropertyKey, never>
         Returns: undefined

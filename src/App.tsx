@@ -14,6 +14,8 @@ import Install from "./pages/Install";
 import Share from "./pages/Share";
 import NotFound from "./pages/NotFound";
 import NotificationSettings from "./pages/NotificationSettings";
+import Contacts from "./pages/Contacts";
+import PrivacySettings from "./pages/PrivacySettings";
 import { useAuth } from "./hooks/useAuth";
 import { useTheme } from "./hooks/useTheme";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
@@ -161,6 +163,22 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <NotificationSettings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/app/contatos"
+                element={
+                  <ProtectedRoute>
+                    <Contacts />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/app/configuracoes/privacidade"
+                element={
+                  <ProtectedRoute>
+                    <PrivacySettings />
                   </ProtectedRoute>
                 }
               />

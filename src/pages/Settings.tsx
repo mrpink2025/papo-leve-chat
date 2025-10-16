@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Bell, ArrowRight } from "lucide-react";
+import { ArrowLeft, Camera, Bell, ArrowRight, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -277,6 +277,30 @@ const Settings = () => {
                   <p className="font-medium">Preferências de notificações</p>
                   <p className="text-sm text-muted-foreground">
                     Configure como você quer receber notificações
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 text-muted-foreground" />
+            </button>
+          </div>
+
+          <Separator className="my-6" />
+
+          {/* Privacy Section */}
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold">Privacidade</h2>
+            <button
+              onClick={() => navigate('/app/configuracoes/privacidade')}
+              className="w-full flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-primary/10 p-2">
+                  <Shield className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">Configurações de privacidade</p>
+                  <p className="text-sm text-muted-foreground">
+                    Configure quem pode ver suas informações
                   </p>
                 </div>
               </div>
