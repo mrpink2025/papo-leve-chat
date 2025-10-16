@@ -218,7 +218,15 @@ check_directory() {
 fix_git_ownership() {
     step "Verificando configuração do Git..."
     
-    cd "$APP_DIR"
+    # Validar mudança de diretório
+    if ! cd "$APP_DIR" 2>/dev/null; then
+        error "Falha ao acessar diretório: $APP_DIR"
+    fi
+    
+    # Confirmar que estamos no diretório correto
+    if [[ "$PWD" != "$APP_DIR" ]]; then
+        error "Diretório atual incorreto. Esperado: $APP_DIR, Atual: $PWD"
+    fi
     
     # Verificar se há erro de propriedade
     if ! git status &>/dev/null; then
@@ -274,7 +282,9 @@ check_disk_space() {
 
 # Obter versão atual
 get_current_version() {
-    cd "$APP_DIR"
+    if ! cd "$APP_DIR" 2>/dev/null; then
+        error "Falha ao acessar diretório: $APP_DIR"
+    fi
     
     # Tentar obter versão do Git
     if git rev-parse --short HEAD 2>/dev/null; then
@@ -300,7 +310,9 @@ create_backup() {
         return 0
     fi
     
-    cd "$APP_DIR"
+    if ! cd "$APP_DIR" 2>/dev/null; then
+        error "Falha ao acessar diretório: $APP_DIR"
+    fi
     
     # Criar backup do dist/ e .env
     tar -czf "${BACKUP_FILE}" \
@@ -322,7 +334,9 @@ create_backup() {
 check_updates() {
     step "Verificando atualizações disponíveis..."
     
-    cd "$APP_DIR"
+    if ! cd "$APP_DIR" 2>/dev/null; then
+        error "Falha ao acessar diretório: $APP_DIR"
+    fi
     
     # Garantir que o repositório Git está configurado corretamente
     if ! git status &>/dev/null; then
@@ -367,7 +381,9 @@ update_code() {
         return 0
     fi
     
-    cd "$APP_DIR"
+    if ! cd "$APP_DIR" 2>/dev/null; then
+        error "Falha ao acessar diretório: $APP_DIR"
+    fi
     
     # Resetar mudanças locais se houver
     if [[ -n $(git status --porcelain) ]]; then
@@ -392,7 +408,9 @@ install_dependencies() {
         return 0
     fi
     
-    cd "$APP_DIR"
+    if ! cd "$APP_DIR" 2>/dev/null; then
+        error "Falha ao acessar diretório: $APP_DIR"
+    fi
     
     if command -v bun &> /dev/null; then
         if bun install 2>&1 | tee -a "${LOG_FILE}"; then
@@ -414,7 +432,9 @@ build_project() {
         return 0
     fi
     
-    cd "$APP_DIR"
+    if ! cd "$APP_DIR" 2>/dev/null; then
+        error "Falha ao acessar diretório: $APP_DIR"
+    fi
     
     # Limpar build anterior
     rm -rf dist/
@@ -550,7 +570,10 @@ cleanup_backups() {
     fi
     
     # Manter apenas os últimos 7 backups
-    cd "${BACKUP_DIR}"
+    if ! cd "${BACKUP_DIR}" 2>/dev/null; then
+        warning "Falha ao acessar diretório de backups: ${BACKUP_DIR}"
+        return 0
+    fi
     ls -t backup_*.tar.gz 2>/dev/null | tail -n +8 | xargs -r rm --
     
     local count=$(ls -1 backup_*.tar.gz 2>/dev/null | wc -l)
@@ -573,7 +596,9 @@ rollback() {
         exit 1
     fi
     
-    cd "$APP_DIR"
+    if ! cd "$APP_DIR" 2>/dev/null; then
+        error "Falha ao acessar diretório durante rollback: $APP_DIR"
+    fi
     
     # Limpar dist/ antes de restaurar
     info "Limpando diretório dist/ antes de restaurar..."
