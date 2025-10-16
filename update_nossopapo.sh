@@ -485,17 +485,18 @@ validate_build() {
     fi
     
     # Verificar arquivos essenciais
-    local required_files=(
-        "${APP_DIR}/dist/index.html"
-        "${APP_DIR}/dist/manifest.json"
-        "${APP_DIR}/dist/assets"
-    )
+    if [[ ! -f "${APP_DIR}/dist/index.html" ]]; then
+        error "Build inválido: index.html não encontrado"
+    fi
     
-    for file in "${required_files[@]}"; do
-        if [[ ! -e "$file" ]]; then
-            error "Build inválido: ${file##*/} não encontrado"
-        fi
-    done
+    # Aceitar manifest.json ou manifest.webmanifest
+    if [[ ! -f "${APP_DIR}/dist/manifest.json" && ! -f "${APP_DIR}/dist/manifest.webmanifest" ]]; then
+        error "Build inválido: manifest.json ou manifest.webmanifest não encontrado"
+    fi
+    
+    if [[ ! -d "${APP_DIR}/dist/assets" ]]; then
+        error "Build inválido: diretório assets não encontrado"
+    fi
     
     # Verificar tamanho mínimo do build (100KB)
     local size_kb=$(du -sk "${APP_DIR}/dist" | cut -f1)
@@ -572,8 +573,12 @@ health_check() {
         error "Health check falhou após ${max_attempts} tentativas (HTTP ${response})"
     fi
     
-    # Verificar PWA manifest
-    local manifest_response=$(curl -s -L -o /dev/null -w "%{http_code}" "https://${DOMAIN}/manifest.json" --max-time 5)
+    # Verificar PWA manifest (tentar ambos os formatos)
+    local manifest_response=$(curl -s -L -o /dev/null -w "%{http_code}" "https://${DOMAIN}/manifest.webmanifest" --max-time 5)
+    if [[ "$manifest_response" != "200" ]]; then
+        manifest_response=$(curl -s -L -o /dev/null -w "%{http_code}" "https://${DOMAIN}/manifest.json" --max-time 5)
+    fi
+    
     if [[ "$manifest_response" == "200" ]]; then
         success "PWA manifest: OK"
     else
