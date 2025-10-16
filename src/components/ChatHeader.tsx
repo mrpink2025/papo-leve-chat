@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Phone, Video, Search, Settings } from "lucide-react";
+import { ArrowLeft, Phone, Video, Search, MoreVertical, Settings2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import GroupSettingsDialog from "./GroupSettingsDialog";
 import ProfileViewDialog from "./ProfileViewDialog";
-import { ConversationNotificationMenu } from "./ConversationNotificationMenu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ChatHeaderProps {
   name: string;
@@ -72,18 +77,19 @@ const ChatHeader = ({
   });
 
   return (
-    <header className="bg-chat-header text-chat-header-foreground px-4 py-3 flex items-center justify-between shadow-chat border-b border-border/50">
-      <div className="flex items-center gap-3 flex-1">
+    <header className="bg-chat-header text-chat-header-foreground px-3 py-2 flex items-center justify-between shadow-sm border-b border-border/50">
+      {/* Lado Esquerdo: Voltar + Avatar + Nome/Status */}
+      <div className="flex items-center gap-2 flex-1 min-w-0">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => navigate("/")}
-          className="text-chat-header-foreground hover:bg-secondary/50"
+          className="text-chat-header-foreground hover:bg-secondary/50 shrink-0"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft size={22} />
         </Button>
         <Avatar 
-          className="h-10 w-10 ring-1 ring-border/50 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+          className="h-10 w-10 ring-1 ring-border/50 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all shrink-0"
           onClick={() => setShowProfileView(true)}
         >
           <AvatarImage src={avatar} alt={name} />
@@ -91,30 +97,25 @@ const ChatHeader = ({
             {name.substring(0, 2).toUpperCase()}
           </AvatarFallback>
         </Avatar>
-        <div className="flex-1">
-          <h2 className="font-semibold text-sm">{name}</h2>
-          <p className="text-xs text-chat-header-foreground/70">
+        <div 
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={() => setShowProfileView(true)}
+        >
+          <h2 className="font-semibold text-base truncate">{name}</h2>
+          <p className="text-xs text-chat-header-foreground/70 truncate">
             {online ? "online" : lastSeen}
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-1">
-        {conversationId && (
-          <ConversationNotificationMenu conversationId={conversationId} />
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onSearch}
-          className="text-chat-header-foreground hover:bg-secondary/50"
-        >
-          <Search size={20} />
-        </Button>
+
+      {/* Lado Direito: Ações (estilo WhatsApp) */}
+      <div className="flex items-center gap-1 shrink-0">
         <Button
           variant="ghost"
           size="icon"
           onClick={onVideoCall}
           className="text-chat-header-foreground hover:bg-secondary/50"
+          title="Chamada de vídeo"
         >
           <Video size={20} />
         </Button>
@@ -123,19 +124,40 @@ const ChatHeader = ({
           size="icon"
           onClick={onAudioCall}
           className="text-chat-header-foreground hover:bg-secondary/50"
+          title="Chamada de voz"
         >
           <Phone size={20} />
         </Button>
-        {isGroup && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowGroupSettings(true)}
-            className="text-chat-header-foreground hover:bg-secondary/50"
-          >
-            <Settings size={20} />
-          </Button>
-        )}
+        
+        {/* Menu de Opções (3 pontos) */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-chat-header-foreground hover:bg-secondary/50"
+              title="Mais opções"
+            >
+              <MoreVertical size={20} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 bg-card">
+            <DropdownMenuItem onClick={onSearch} className="cursor-pointer">
+              <Search size={18} className="mr-2" />
+              <span>Pesquisar</span>
+            </DropdownMenuItem>
+
+            {isGroup && (
+              <DropdownMenuItem 
+                onClick={() => setShowGroupSettings(true)}
+                className="cursor-pointer"
+              >
+                <Settings2 size={18} className="mr-2" />
+                <span>Configurações do grupo</span>
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {isGroup && conversationId && (
