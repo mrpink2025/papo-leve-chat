@@ -9,6 +9,7 @@ import {
 } from './useNotificationCategories';
 import { useNotificationRateLimit } from './useNotificationRateLimit';
 import { useNotificationGrouping } from './useNotificationGrouping';
+import { useNotificationTelemetry } from './useNotificationTelemetry';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface NotificationRequest {
@@ -37,6 +38,7 @@ export const useNotificationManager = () => {
   const { getCategorySettings, getCategoryPriority } = useNotificationCategories();
   const { checkRateLimit, incrementRateLimit } = useNotificationRateLimit();
   const { shouldGroupNotification } = useNotificationGrouping();
+  const { trackSent, trackFailed, trackBlocked } = useNotificationTelemetry();
 
   // Decisão completa: deve enviar notificação?
   const shouldSendNotification = useCallback(async (
@@ -130,32 +132,41 @@ export const useNotificationManager = () => {
   const sendNotification = useCallback(async (
     request: NotificationRequest
   ): Promise<boolean> => {
+    const startTime = Date.now();
+    
     try {
       const decision = await shouldSendNotification(request);
 
       if (!decision.shouldSend) {
         console.log(`Notificação bloqueada: ${decision.reason}`);
+        // Track bloqueio
+        await trackBlocked(request.category, request.conversationId, decision.reason || 'Unknown');
         return false;
       }
 
-      // Preparar payload
+      // Preparar payload com privacidade (dados mínimos)
       const categorySettings = getCategorySettings(request.category);
       
       let body = request.body;
+      // Para privacidade, truncar corpo se muito longo
+      if (body.length > 100) {
+        body = body.substring(0, 97) + '...';
+      }
+      
       if (decision.shouldGroup && decision.groupedCount && decision.groupedCount > 1) {
         body = `${decision.groupedCount} novas mensagens`;
       }
 
       const payload = {
         title: request.title,
-        body,
-        icon: request.icon || request.avatar || '/app-icon-192.png',
+        body, // Corpo truncado para privacidade
+        icon: '/app-icon-192.png', // Usar ícone padrão por privacidade
         badge: '/app-icon-192.png',
         tag: `conv-${request.conversationId}`, // Tag para agrupar por conversa
         data: {
           url: `/chat/${request.conversationId}`,
           conversationId: request.conversationId,
-          messageId: request.messageId,
+          // Não incluir messageId ou outros dados sensíveis por privacidade
           category: request.category,
           priority: decision.priority,
         },
@@ -177,16 +188,27 @@ export const useNotificationManager = () => {
 
       if (error) {
         console.error('Erro ao enviar notificação:', error);
+        // Track falha
+        await trackFailed(request.category, request.conversationId, error.message);
         return false;
       }
 
-      console.log('Notificação enviada:', data);
+      // Track sucesso com latência
+      await trackSent(request.category, request.conversationId, startTime);
+      
+      console.log('Notificação enviada:', data, `Latência: ${Date.now() - startTime}ms`);
       return true;
     } catch (error) {
       console.error('Erro ao processar notificação:', error);
+      // Track falha
+      await trackFailed(
+        request.category,
+        request.conversationId,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
       return false;
     }
-  }, [user, shouldSendNotification, getCategorySettings]);
+  }, [user, shouldSendNotification, getCategorySettings, trackSent, trackFailed, trackBlocked]);
 
   // Enviar notificação de mensagem
   const notifyNewMessage = useCallback(async (
