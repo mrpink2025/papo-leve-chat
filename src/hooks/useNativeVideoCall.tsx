@@ -302,7 +302,7 @@ export const useNativeVideoCall = () => {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Registrar chamada no banco - FASE 2: Corrigir user_id
+  // Registrar chamada no banco + ENVIAR PUSH NOTIFICATION
   const registerCallInDatabase = async (
     conversationId: string,
     callerId: string,
@@ -322,11 +322,21 @@ export const useNativeVideoCall = () => {
       
       const recipientId = participants[0].user_id;
       
+      // Buscar informações do caller
+      const { data: callerProfile } = await supabase
+        .from('profiles')
+        .select('full_name, username, avatar_url')
+        .eq('id', callerId)
+        .single();
+      
+      const callerName = callerProfile?.full_name || callerProfile?.username || 'Desconhecido';
+      
       console.log('[useNativeVideoCall] Registrando chamada:', {
         callerId,
         recipientId,
         conversationId,
-        callType
+        callType,
+        callerName
       });
       
       // Inserir notificação de chamada para o DESTINATÁRIO
@@ -345,6 +355,41 @@ export const useNativeVideoCall = () => {
       if (error) throw error;
       
       console.log('[useNativeVideoCall] Chamada registrada com sucesso:', callNotification);
+      
+      // 🔔 ENVIAR PUSH NOTIFICATION para o destinatário
+      try {
+        const callIcon = callType === 'video' ? '📹' : '📞';
+        const callTypeText = callType === 'video' ? 'vídeo' : 'áudio';
+        
+        await supabase.functions.invoke('send-push-notification', {
+          body: {
+            recipientId: recipientId,
+            payload: {
+              title: `${callIcon} Chamada de ${callTypeText}`,
+              body: `${callerName} está chamando...`,
+              icon: callerProfile?.avatar_url || '/app-icon-192.png',
+              badge: '/app-icon-192.png',
+              tag: `call-${callNotification.id}`,
+              data: {
+                url: `/chat/${conversationId}`,
+                conversationId: conversationId,
+                callId: callNotification.id,
+                callType: callType,
+                callerId: callerId,
+                category: 'call',
+                priority: 'urgent',
+              },
+              requireInteraction: true,
+              silent: false,
+            },
+          },
+        });
+        
+        console.log('[useNativeVideoCall] Push notification enviada para:', recipientId);
+      } catch (pushError) {
+        console.error('[useNativeVideoCall] Erro ao enviar push notification:', pushError);
+        // Não bloquear a chamada se falhar o push
+      }
       
       return callNotification?.id;
     } catch (error) {

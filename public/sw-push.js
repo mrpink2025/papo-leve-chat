@@ -17,7 +17,7 @@ setInterval(() => {
 // Mapear prioridade para configurações de notificação
 const PRIORITY_SETTINGS = {
   urgent: {
-    vibrate: [400, 200, 400, 200, 400],
+    vibrate: [400, 200, 400, 200, 400, 200, 400, 200, 400], // Vibração mais longa para chamadas
     requireInteraction: true,
     silent: false,
   },
@@ -36,6 +36,14 @@ const PRIORITY_SETTINGS = {
     requireInteraction: false,
     silent: true,
   },
+};
+
+// Configurações especiais para chamadas
+const CALL_SETTINGS = {
+  vibrate: [800, 400, 800, 400, 800, 400, 800], // Padrão de toque
+  requireInteraction: true,
+  silent: false,
+  renotify: true,
 };
 
 // Escutar mensagens para sincronização de badges
@@ -114,28 +122,40 @@ self.addEventListener('push', (event) => {
     
     const title = notification.title || 'Nova mensagem';
     const priority = notification.data?.priority || 'normal';
-    const prioritySettings = PRIORITY_SETTINGS[priority] || PRIORITY_SETTINGS.normal;
+    const category = notification.data?.category || 'messages';
+    const isCall = category === 'call';
     
-    // Configurações baseadas na prioridade
+    // Usar configurações especiais para chamadas
+    const prioritySettings = isCall 
+      ? CALL_SETTINGS 
+      : (PRIORITY_SETTINGS[priority] || PRIORITY_SETTINGS.normal);
+    
+    // Configurações baseadas na prioridade/categoria
     const notificationOptions = {
       body: notification.body || 'Você tem uma nova mensagem',
       icon: notification.icon || '/app-icon-192.png',
       badge: notification.badge || '/app-icon-192.png',
       tag: notification.tag || 'nosso-papo-notification',
       data: notification.data || {},
-      renotify: notification.renotify || false,
+      renotify: isCall ? true : (notification.renotify || false),
       silent: notification.silent || prioritySettings.silent,
       requireInteraction: notification.requireInteraction || prioritySettings.requireInteraction,
       vibrate: notification.silent ? [] : (prioritySettings.vibrate || [200, 100, 200]),
-      actions: priority === 'urgent' 
+      actions: isCall 
         ? [
-            { action: 'answer', title: 'Atender' },
-            { action: 'decline', title: 'Recusar' },
+            { action: 'answer', title: 'Atender', icon: '/app-icon-192.png' },
+            { action: 'decline', title: 'Recusar', icon: '/app-icon-192.png' },
           ]
-        : [
-            { action: 'open', title: 'Abrir' },
-            { action: 'close', title: 'Fechar' },
-          ],
+        : (priority === 'urgent' 
+            ? [
+                { action: 'answer', title: 'Atender' },
+                { action: 'decline', title: 'Recusar' },
+              ]
+            : [
+                { action: 'open', title: 'Abrir' },
+                { action: 'close', title: 'Fechar' },
+              ]
+          ),
     };
 
     event.waitUntil(
@@ -164,10 +184,31 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   console.log('Notification clicked', event);
   
+  const isCall = event.notification.data?.category === 'call';
+  const callId = event.notification.data?.callId;
+  
   event.notification.close();
 
-  // Se a ação é fechar, não fazer nada
-  if (event.action === 'close' || event.action === 'decline') {
+  // Se a ação é recusar chamada
+  if (event.action === 'decline') {
+    if (isCall && callId) {
+      // Atualizar status da chamada no banco para 'rejected'
+      event.waitUntil(
+        fetch(`https://valazbmgqazykdzcwfcs.supabase.co/rest/v1/call_notifications?id=eq.${callId}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhbGF6Ym1ncWF6eWtkemN3ZmNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1ODI1OTIsImV4cCI6MjA3NjE1ODU5Mn0.BKwXC0ZnGz1F0W7uMoJQcaUvN5K6mNJk5fYdj1LukFI',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ status: 'rejected', ended_at: new Date().toISOString() }),
+        })
+      );
+    }
+    return;
+  }
+
+  // Se a ação é fechar notificação normal
+  if (event.action === 'close') {
     return;
   }
 
