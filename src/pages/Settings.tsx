@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserPreferences } from "@/hooks/useUserPreferences";
+import { useThemeMode } from "@/hooks/useThemeMode";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +22,7 @@ const Settings = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { preferences, updatePreferences } = useUserPreferences();
+  const { themeMode, setThemeMode } = useThemeMode();
   const { t, i18n } = useTranslation();
 
   const { data: profile } = useQuery({
@@ -177,7 +179,7 @@ const Settings = () => {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <div className="bg-card border-b border-border p-4 flex items-center gap-3">
+      <div className="bg-card border-b border-border p-4 flex items-center gap-3 shadow-sm">
         <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -265,6 +267,25 @@ const Settings = () => {
             <h2 className="text-xl font-semibold">{t('settings.preferences')}</h2>
 
             <div className="space-y-4">
+              {/* Seletor Light/Dark */}
+              <div className="space-y-2">
+                <Label htmlFor="theme-mode">Modo do tema</Label>
+                <Select
+                  value={themeMode}
+                  onValueChange={(value) => setThemeMode(value as "light" | "dark" | "auto")}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">☀️ Claro</SelectItem>
+                    <SelectItem value="dark">🌙 Escuro</SelectItem>
+                    <SelectItem value="auto">🔄 Automático</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Temas de cor (apenas para modo escuro) */}
               <div className="space-y-2">
                 <Label htmlFor="theme">{t('settings.theme')}</Label>
                 <Select
@@ -282,6 +303,7 @@ const Settings = () => {
                     <SelectItem value="purple">{t('settings.themes.purple')}</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">Temas de cor funcionam melhor no modo escuro</p>
               </div>
 
               <div className="space-y-2">
@@ -304,6 +326,17 @@ const Settings = () => {
                 </Select>
               </div>
             </div>
+          </div>
+
+          {/* Rodapé */}
+          <Separator className="my-8" />
+          <div className="text-center pb-6">
+            <p className="text-sm text-muted-foreground mb-1">
+              <span className="font-semibold text-primary">Nosso Papo</span> - Onde cada conversa importa
+            </p>
+            <p className="text-xs text-muted-foreground">
+              © 2025 · <a href="https://nossopapo.net" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors underline">nossopapo.net</a>
+            </p>
           </div>
         </div>
       </div>

@@ -7,6 +7,7 @@ All colors MUST be HSL.
 */
 
 @layer base {
+  /* TEMA ESCURO (padrão) */
   :root {
     --background: 210 25% 6%;
     --foreground: 0 0% 95%;
@@ -53,9 +54,76 @@ All colors MUST be HSL.
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --shadow-chat: 0 2px 8px 0 hsl(0 0% 0% / 0.3);
     --shadow-message: 0 1px 3px 0 hsl(0 0% 0% / 0.4);
+
+    /* Estados adicionais */
+    --success: 152 69% 46%;
+    --warning: 38 92% 50%;
+    --error: 4 90% 58%;
+    --info: 217 91% 60%;
   }
 
-  /* Blue Theme */
+  /* TEMA CLARO - Nosso Papo */
+  [data-theme="light"] {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 7%;
+
+    --card: 0 0% 98%;
+    --card-foreground: 0 0% 7%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 7%;
+
+    /* Laranja primário #FF8A00 */
+    --primary: 33 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 33 100% 60%;
+
+    /* Amarelo secundário #FFC400 */
+    --secondary: 45 100% 50%;
+    --secondary-foreground: 0 0% 7%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 33%;
+
+    --accent: 33 100% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Erro vermelho #E53935 */
+    --destructive: 4 79% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Divisórias #EAEAEA */
+    --border: 0 0% 92%;
+    --input: 0 0% 96%;
+    --ring: 45 100% 50%;
+
+    /* Header branco puro */
+    --chat-header: 0 0% 100%;
+    --chat-header-foreground: 33 100% 50%;
+    
+    /* Mensagens enviadas: bolha branca com borda laranja */
+    --message-sent: 0 0% 100%;
+    --message-sent-foreground: 0 0% 7%;
+    --message-sent-border: 33 100% 88%;
+    
+    /* Mensagens recebidas: fundo branco neutro */
+    --message-received: 0 0% 98%;
+    --message-received-foreground: 0 0% 7%;
+
+    /* Fundo das conversas */
+    --chat-background: 0 0% 98%;
+
+    --shadow-chat: 0 0 8px 0 hsl(0 0% 0% / 0.06);
+    --shadow-message: 0 1px 3px 0 hsl(0 0% 0% / 0.08);
+
+    /* Estados adicionais */
+    --success: 152 69% 46%;
+    --warning: 38 92% 56%;
+    --error: 4 79% 56%;
+    --info: 217 91% 60%;
+  }
+
+  /* Blue Theme - Tema escuro com primary azul */
   [data-theme="blue"] {
     --primary: 217 91% 60%;
     --primary-glow: 217 91% 70%;
@@ -64,7 +132,7 @@ All colors MUST be HSL.
     --message-sent: 217 91% 55%;
   }
 
-  /* Green Theme */
+  /* Green Theme - Tema escuro com primary verde */
   [data-theme="green"] {
     --primary: 142 76% 36%;
     --primary-glow: 142 76% 46%;
@@ -73,7 +141,7 @@ All colors MUST be HSL.
     --message-sent: 142 76% 31%;
   }
 
-  /* Purple Theme */
+  /* Purple Theme - Tema escuro com primary roxo */
   [data-theme="purple"] {
     --primary: 262 83% 58%;
     --primary-glow: 262 83% 68%;
@@ -82,7 +150,7 @@ All colors MUST be HSL.
     --message-sent: 262 83% 53%;
   }
 
-  /* Dark Theme (pure dark) */
+  /* Dark Theme - Tema escuro puro */
   [data-theme="dark"] {
     --background: 0 0% 3%;
     --card: 0 0% 6%;
@@ -97,6 +165,23 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-poppins transition-colors duration-200;
+  }
+
+  /* Foco visível para acessibilidade */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Transições suaves */
+  button, a, [role="button"] {
+    @apply transition-all duration-150;
+  }
+}
+
+@layer components {
+  /* Bolha de mensagem enviada - tema claro */
+  [data-theme="light"] .message-sent {
+    border: 1.5px solid hsl(var(--message-sent-border));
   }
 }

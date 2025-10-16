@@ -60,7 +60,7 @@ const MessageBubble = ({
           <div
             className={`rounded-lg px-3 py-2 shadow-message backdrop-blur-sm ${
               isSent
-                ? "bg-message-sent text-message-sent-foreground rounded-br-sm"
+                ? "bg-message-sent text-message-sent-foreground rounded-br-sm message-sent"
                 : "bg-message-received text-message-received-foreground rounded-bl-sm border border-border/50"
             } ${status === "error" ? "opacity-50" : ""}`}
           >

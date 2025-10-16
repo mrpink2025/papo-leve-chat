@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -51,14 +52,15 @@ const Index = () => {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <div className="bg-card border-b border-border p-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Papo</h1>
+      <div className="bg-card border-b border-border p-4 flex items-center justify-between shadow-sm">
+        <h1 className="text-2xl font-bold text-primary">Nosso Papo</h1>
         <div className="flex gap-2">
+          <ThemeToggle />
           <CreateGroupDialog />
-          <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} title="Configurações">
             <Settings className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={signOut}>
+          <Button variant="ghost" size="icon" onClick={signOut} title="Sair">
             <LogOut className="h-5 w-5" />
           </Button>
         </div>
