@@ -18,6 +18,7 @@ export interface IncomingCall {
 export const useIncomingCalls = (userId: string | undefined) => {
   const { toast } = useToast();
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
+  const [missedTimeout, setMissedTimeout] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -67,10 +68,42 @@ export const useIncomingCalls = (userId: string | undefined) => {
               title: `📞 Chamada de ${incomingCallData.callerName}`,
               description: `Chamada de ${callData.call_type === 'video' ? 'vídeo' : 'áudio'} recebida`,
             });
+
+            // FASE 3: Timeout de 30 segundos para marcar como "missed"
+            const timeout = setTimeout(async () => {
+              console.log('[useIncomingCalls] Chamada não atendida, marcando como missed');
+              
+              await supabase
+                .from('call_notifications')
+                .update({ 
+                  status: 'missed', 
+                  ended_at: new Date().toISOString() 
+                })
+                .eq('id', callData.id);
+              
+              stopRingtone();
+              setIncomingCall(null);
+              
+              toast({
+                title: 'Chamada perdida',
+                description: `Você perdeu uma chamada de ${incomingCallData.callerName}`,
+              });
+            }, 30000); // 30 segundos
+            
+            setMissedTimeout(timeout);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        // FASE 6: Logs de debug
+        console.log('[useIncomingCalls] Status da subscrição:', status);
+        
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [useIncomingCalls] Listener de chamadas ATIVO para userId:', userId);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ [useIncomingCalls] Erro no canal Realtime');
+        }
+      });
 
     // Limpar ao desmontar
     return () => {
@@ -82,8 +115,13 @@ export const useIncomingCalls = (userId: string | undefined) => {
   // Aceitar chamada
   const acceptCall = useCallback(() => {
     stopRingtone();
+    // Limpar timeout
+    if (missedTimeout) {
+      clearTimeout(missedTimeout);
+      setMissedTimeout(null);
+    }
     // Não limpar incomingCall aqui, será limpo pelo componente pai
-  }, []);
+  }, [missedTimeout]);
 
   // Rejeitar chamada
   const rejectCall = useCallback(async () => {
@@ -92,6 +130,12 @@ export const useIncomingCalls = (userId: string | undefined) => {
     console.log('[useIncomingCalls] Rejeitando chamada:', incomingCall.callId);
     
     stopRingtone();
+    
+    // Limpar timeout
+    if (missedTimeout) {
+      clearTimeout(missedTimeout);
+      setMissedTimeout(null);
+    }
 
     // Atualizar status no banco
     await supabase
@@ -105,7 +149,7 @@ export const useIncomingCalls = (userId: string | undefined) => {
       title: 'Chamada recusada',
       description: 'Você recusou a chamada',
     });
-  }, [incomingCall, toast]);
+  }, [incomingCall, toast, missedTimeout]);
 
   // Limpar chamada (após atender)
   const clearIncomingCall = useCallback(() => {
@@ -120,31 +164,89 @@ export const useIncomingCalls = (userId: string | undefined) => {
   };
 };
 
-// Variável global para controlar o ringtone
-let ringtoneAudio: HTMLAudioElement | null = null;
+// FASE 4: Variáveis globais para controlar o ringtone com Web Audio API
+let audioContext: AudioContext | null = null;
+let oscillator: OscillatorNode | null = null;
+let gainNode: GainNode | null = null;
+let ringInterval: NodeJS.Timeout | null = null;
 
 function playRingtone() {
   try {
-    // Criar áudio de ringtone (usando tom padrão do navegador)
-    if (!ringtoneAudio) {
-      ringtoneAudio = new Audio();
-      // Usar data URL com um tom simples
-      ringtoneAudio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjGH0fPTgjMGHm7A7+OZSA0PWqPn77BdGQg+ltryxnMnBSl+zPLaizsIGGS57OihUBELTKXh8bllHgU2jdXzzn0vBSF1xe/glEILEl+36+6oVxQKRp/g8r5sIQYxh9Hz04IzBh5uwO/jmUgND1qj5++wXRkIPpba8sZzJwUpfszy2os7CBhkuezooVARCU';
-      ringtoneAudio.loop = true;
-      ringtoneAudio.volume = 0.5;
+    if (audioContext) {
+      console.log('[useIncomingCalls] Ringtone já está tocando');
+      return;
     }
+
+    console.log('[useIncomingCalls] Iniciando ringtone com Web Audio API');
     
-    ringtoneAudio.play().catch((error) => {
-      console.warn('[useIncomingCalls] Não foi possível tocar ringtone:', error);
-    });
+    audioContext = new AudioContext();
+    gainNode = audioContext.createGain();
+    gainNode.gain.value = 0.3; // 30% volume
+    gainNode.connect(audioContext.destination);
+    
+    // Padrão de toque: 1s on, 0.5s off
+    let isPlaying = false;
+    
+    const playTone = () => {
+      if (isPlaying) return;
+      
+      isPlaying = true;
+      oscillator = audioContext!.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 440; // Nota Lá (A4)
+      oscillator.connect(gainNode!);
+      oscillator.start(0);
+      
+      setTimeout(() => {
+        if (oscillator) {
+          oscillator.stop();
+          oscillator.disconnect();
+          oscillator = null;
+        }
+        isPlaying = false;
+      }, 1000); // Toca por 1 segundo
+    };
+    
+    // Iniciar primeiro toque
+    playTone();
+    
+    // Continuar tocando em intervalos (1s on, 0.5s off = 1.5s total)
+    ringInterval = setInterval(() => {
+      if (audioContext) {
+        playTone();
+      }
+    }, 1500);
+    
   } catch (error) {
     console.warn('[useIncomingCalls] Erro ao tocar ringtone:', error);
   }
 }
 
 function stopRingtone() {
-  if (ringtoneAudio) {
-    ringtoneAudio.pause();
-    ringtoneAudio.currentTime = 0;
+  console.log('[useIncomingCalls] Parando ringtone');
+  
+  if (ringInterval) {
+    clearInterval(ringInterval);
+    ringInterval = null;
+  }
+  
+  if (oscillator) {
+    try {
+      oscillator.stop();
+      oscillator.disconnect();
+    } catch (e) {
+      // Ignorar erro se já foi parado
+    }
+    oscillator = null;
+  }
+  
+  if (gainNode) {
+    gainNode.disconnect();
+    gainNode = null;
+  }
+  
+  if (audioContext) {
+    audioContext.close().catch(() => {});
+    audioContext = null;
   }
 }

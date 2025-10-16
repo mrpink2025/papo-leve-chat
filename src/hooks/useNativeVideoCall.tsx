@@ -301,22 +301,54 @@ export const useNativeVideoCall = () => {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Registrar chamada no banco
+  // Registrar chamada no banco - FASE 2: Corrigir user_id
   const registerCallInDatabase = async (
     conversationId: string,
-    userId: string,
+    callerId: string,
     callType: CallType
   ) => {
     try {
-      await supabase.from('call_notifications').insert({
-        conversation_id: conversationId,
-        caller_id: userId,
-        user_id: userId,
-        call_type: callType,
-        status: 'ringing',
+      // Buscar o outro participante da conversa (destinatário)
+      const { data: participants } = await supabase
+        .from('conversation_participants')
+        .select('user_id')
+        .eq('conversation_id', conversationId)
+        .neq('user_id', callerId);
+      
+      if (!participants || participants.length === 0) {
+        throw new Error('Destinatário não encontrado');
+      }
+      
+      const recipientId = participants[0].user_id;
+      
+      console.log('[useNativeVideoCall] Registrando chamada:', {
+        callerId,
+        recipientId,
+        conversationId,
+        callType
       });
+      
+      // Inserir notificação de chamada para o DESTINATÁRIO
+      const { data: callNotification, error } = await supabase
+        .from('call_notifications')
+        .insert({
+          conversation_id: conversationId,
+          caller_id: callerId,
+          user_id: recipientId, // ✅ DESTINATÁRIO, não o caller!
+          call_type: callType,
+          status: 'ringing',
+        })
+        .select('id')
+        .single();
+      
+      if (error) throw error;
+      
+      console.log('[useNativeVideoCall] Chamada registrada com sucesso:', callNotification);
+      
+      return callNotification?.id;
     } catch (error) {
       console.error('[useNativeVideoCall] Erro ao registrar chamada:', error);
+      throw error;
     }
   };
 
