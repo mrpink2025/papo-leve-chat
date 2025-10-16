@@ -6,12 +6,14 @@ import MessageInput from "@/components/MessageInput";
 import TypingIndicator from "@/components/TypingIndicator";
 import DateSeparator from "@/components/DateSeparator";
 import SearchMessages from "@/components/SearchMessages";
-import { VideoCallDialog } from "@/components/VideoCallDialog";
+import { NativeCallDialog } from "@/components/NativeCallDialog";
+import { IncomingNativeCallDialog } from "@/components/IncomingNativeCallDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessages } from "@/hooks/useMessages";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { useMessageActions } from "@/hooks/useMessageActions";
-import { useVideoCall } from "@/hooks/useVideoCall";
+import { useNativeVideoCall } from "@/hooks/useNativeVideoCall";
+import { useIncomingCalls } from "@/hooks/useIncomingCalls";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useMessageStatus } from "@/hooks/useMessageStatus";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
@@ -93,7 +95,16 @@ const Chat = () => {
   const { messages, sendMessage, hasNextPage, loadMore } = useMessages(id, user?.id);
   const { typingUsers, setTyping } = useTypingIndicator(id || "", user?.id || "");
   const { editMessage, deleteMessage } = useMessageActions(id || "");
-  const { callState, startCall, endCall } = useVideoCall();
+  const { 
+    callState, 
+    startCall, 
+    endCall, 
+    toggleVideo, 
+    toggleAudio, 
+    switchCamera,
+    formatDuration 
+  } = useNativeVideoCall();
+  const { incomingCall, acceptCall, rejectCall, clearIncomingCall } = useIncomingCalls(user?.id);
   const { trackEvent } = useAnalytics();
   const { markAsRead, getMessageStatus } = useMessageStatus(id, user?.id);
   const { isOnline: isNetworkOnline, addToQueue, removeFromQueue } = useOfflineQueue();
@@ -184,26 +195,66 @@ const Chat = () => {
         conversationId={id}
         otherUserId={conversation.other_participant?.id}
         onVideoCall={() => {
-          if (id) {
-            startCall(id, true);
+          if (id && conversation.other_participant) {
+            startCall(
+              id,
+              'video',
+              {
+                name: conversation.other_participant.full_name || conversation.other_participant.username || 'Usuário',
+                avatar: conversation.other_participant.avatar_url,
+              }
+            );
             trackEvent({ eventType: 'video_call_started', eventData: { conversationId: id } });
           }
         }}
         onAudioCall={() => {
-          if (id) {
-            startCall(id, false);
+          if (id && conversation.other_participant) {
+            startCall(
+              id,
+              'audio',
+              {
+                name: conversation.other_participant.full_name || conversation.other_participant.username || 'Usuário',
+                avatar: conversation.other_participant.avatar_url,
+              }
+            );
             trackEvent({ eventType: 'audio_call_started', eventData: { conversationId: id } });
           }
         }}
         onSearch={() => setShowSearch(!showSearch)}
       />
 
-      <VideoCallDialog
-        open={callState.isInCall}
-        onClose={endCall}
-        roomName={callState.roomName || ""}
-        displayName={user?.email?.split('@')[0] || "Usuário"}
+      {/* Chamada ativa */}
+      <NativeCallDialog
+        callState={callState}
+        onEndCall={endCall}
+        onToggleVideo={toggleVideo}
+        onToggleAudio={toggleAudio}
+        onSwitchCamera={switchCamera}
+        formatDuration={formatDuration}
       />
+
+      {/* Chamada recebida */}
+      {incomingCall && (
+        <IncomingNativeCallDialog
+          open={true}
+          callerName={incomingCall.callerName}
+          callerAvatar={incomingCall.callerAvatar}
+          callType={incomingCall.callType}
+          onAccept={() => {
+            acceptCall();
+            startCall(
+              incomingCall.conversationId,
+              incomingCall.callType,
+              {
+                name: incomingCall.callerName,
+                avatar: incomingCall.callerAvatar,
+              }
+            );
+            clearIncomingCall();
+          }}
+          onReject={rejectCall}
+        />
+      )}
 
       {showSearch && (
         <SearchMessages
