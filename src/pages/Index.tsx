@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, Settings, Archive, LogOut } from "lucide-react";
 import ChatListItem from "@/components/ChatListItem";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
+import { StoriesList } from "@/components/StoriesList";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -74,6 +75,8 @@ const Index = () => {
           />
         </div>
       </div>
+
+      <StoriesList />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <TabsList className="w-full rounded-none border-b">

@@ -5,16 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 const Settings = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { preferences, updatePreferences } = useUserPreferences();
+  const { t, i18n } = useTranslation();
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
@@ -181,6 +187,54 @@ const Settings = () => {
               {updateProfile.isPending ? "Salvando..." : "Salvar alterações"}
             </Button>
           </form>
+
+          <Separator className="my-6" />
+
+          {/* Preferences Section */}
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold">{t('settings.preferences')}</h2>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="theme">{t('settings.theme')}</Label>
+                <Select
+                  value={preferences?.theme || 'default'}
+                  onValueChange={(value) => updatePreferences({ theme: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">{t('settings.themes.default')}</SelectItem>
+                    <SelectItem value="dark">{t('settings.themes.dark')}</SelectItem>
+                    <SelectItem value="blue">{t('settings.themes.blue')}</SelectItem>
+                    <SelectItem value="green">{t('settings.themes.green')}</SelectItem>
+                    <SelectItem value="purple">{t('settings.themes.purple')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="language">{t('settings.language')}</Label>
+                <Select
+                  value={preferences?.language || 'pt'}
+                  onValueChange={(value) => {
+                    updatePreferences({ language: value });
+                    i18n.changeLanguage(value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pt">{t('settings.languages.pt')}</SelectItem>
+                    <SelectItem value="en">{t('settings.languages.en')}</SelectItem>
+                    <SelectItem value="es">{t('settings.languages.es')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

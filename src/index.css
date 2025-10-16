@@ -54,6 +54,41 @@ All colors MUST be HSL.
     --shadow-chat: 0 2px 8px 0 hsl(0 0% 0% / 0.3);
     --shadow-message: 0 1px 3px 0 hsl(0 0% 0% / 0.4);
   }
+
+  /* Blue Theme */
+  [data-theme="blue"] {
+    --primary: 217 91% 60%;
+    --primary-glow: 217 91% 70%;
+    --accent: 217 91% 50%;
+    --ring: 217 91% 60%;
+    --message-sent: 217 91% 55%;
+  }
+
+  /* Green Theme */
+  [data-theme="green"] {
+    --primary: 142 76% 36%;
+    --primary-glow: 142 76% 46%;
+    --accent: 142 76% 26%;
+    --ring: 142 76% 36%;
+    --message-sent: 142 76% 31%;
+  }
+
+  /* Purple Theme */
+  [data-theme="purple"] {
+    --primary: 262 83% 58%;
+    --primary-glow: 262 83% 68%;
+    --accent: 262 83% 48%;
+    --ring: 262 83% 58%;
+    --message-sent: 262 83% 53%;
+  }
+
+  /* Dark Theme (pure dark) */
+  [data-theme="dark"] {
+    --background: 0 0% 3%;
+    --card: 0 0% 6%;
+    --chat-header: 0 0% 5%;
+    --chat-background: 0 0% 2%;
+  }
 }
 
 @layer base {

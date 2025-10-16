@@ -10,6 +10,7 @@ import { useMessages } from "@/hooks/useMessages";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { useMessageActions } from "@/hooks/useMessageActions";
 import { useVideoCall } from "@/hooks/useVideoCall";
+import { useAnalytics } from "@/hooks/useAnalytics";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -85,6 +86,7 @@ const Chat = () => {
   const { typingUsers, setTyping } = useTypingIndicator(id || "", user?.id || "");
   const { editMessage, deleteMessage } = useMessageActions(id || "");
   const { callState, startCall, endCall } = useVideoCall();
+  const { trackEvent } = useAnalytics();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -109,6 +111,7 @@ const Chat = () => {
   ) => {
     try {
       await sendMessage({ content, type, metadata });
+      trackEvent({ eventType: 'message_sent', eventData: { conversationId: id, type } });
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -147,8 +150,18 @@ const Chat = () => {
         avatar={displayAvatar}
         online={isOnline}
         lastSeen={lastSeen}
-        onVideoCall={() => id && startCall(id, true)}
-        onAudioCall={() => id && startCall(id, false)}
+        onVideoCall={() => {
+          if (id) {
+            startCall(id, true);
+            trackEvent({ eventType: 'video_call_started', eventData: { conversationId: id } });
+          }
+        }}
+        onAudioCall={() => {
+          if (id) {
+            startCall(id, false);
+            trackEvent({ eventType: 'audio_call_started', eventData: { conversationId: id } });
+          }
+        }}
       />
 
       <VideoCallDialog
