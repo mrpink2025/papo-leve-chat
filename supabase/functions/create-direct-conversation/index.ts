@@ -34,12 +34,18 @@ serve(async (req) => {
 
     const accessToken = authHeader.replace("Bearer ", "");
 
-    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    // Admin client with service_role_key (bypass RLS)
+    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    // User client for authentication validation
+    const userClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
 
-    const { data: meData, error: meError } = await admin.auth.getUser(accessToken);
+    const { data: meData, error: meError } = await userClient.auth.getUser(accessToken);
     if (meError || !meData?.user) {
       console.error("[create-direct-conversation] getUser error:", meError);
       return new Response(JSON.stringify({ error: "Invalid user" }), {
@@ -50,6 +56,8 @@ serve(async (req) => {
 
     const me = meData.user;
     const { target_user_id } = await req.json();
+
+    console.log("[create-direct-conversation] User:", me.id, "Target:", target_user_id);
 
     if (!target_user_id) {
       return new Response(JSON.stringify({ error: "target_user_id is required" }), {
@@ -66,7 +74,7 @@ serve(async (req) => {
     }
 
     // 1) Find an existing direct conversation with both participants
-    const { data: cpRows, error: cpError } = await admin
+    const { data: cpRows, error: cpError } = await adminClient
       .from("conversation_participants")
       .select("conversation_id, user_id")
       .in("user_id", [me.id, target_user_id]);
@@ -91,7 +99,7 @@ serve(async (req) => {
         .map(([convId]) => convId);
 
       if (bothIds.length) {
-        const { data: existing, error: existingErr } = await admin
+        const { data: existing, error: existingErr } = await adminClient
           .from("conversations")
           .select("id")
           .in("id", bothIds)
@@ -118,7 +126,9 @@ serve(async (req) => {
     // 2) Create new conversation and participants
     const newId = crypto.randomUUID();
 
-    const { error: convInsertError } = await admin.from("conversations").insert({
+    console.log("[create-direct-conversation] Creating new conversation with admin client");
+
+    const { error: convInsertError } = await adminClient.from("conversations").insert({
       id: newId,
       type: "direct",
       created_by: me.id,
@@ -132,7 +142,7 @@ serve(async (req) => {
       });
     }
 
-    const { error: partsError } = await admin.from("conversation_participants").insert([
+    const { error: partsError } = await adminClient.from("conversation_participants").insert([
       { conversation_id: newId, user_id: me.id },
       { conversation_id: newId, user_id: target_user_id },
     ]);
@@ -140,7 +150,7 @@ serve(async (req) => {
     if (partsError) {
       console.error("[create-direct-conversation] Insert participants error:", partsError);
       // Best effort cleanup
-      await admin.from("conversations").delete().eq("id", newId);
+      await adminClient.from("conversations").delete().eq("id", newId);
       return new Response(JSON.stringify({ error: partsError.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
