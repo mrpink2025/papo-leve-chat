@@ -110,24 +110,28 @@ const ChatHeader = ({
 
       {/* Lado Direito: Ações (estilo WhatsApp) */}
       <div className="flex items-center gap-1 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onVideoCall}
-          className="text-chat-header-foreground hover:bg-secondary/50"
-          title="Chamada de vídeo"
-        >
-          <Video size={20} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onAudioCall}
-          className="text-chat-header-foreground hover:bg-secondary/50"
-          title="Chamada de voz"
-        >
-          <Phone size={20} />
-        </Button>
+        {!isGroup && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onVideoCall}
+              className="text-chat-header-foreground hover:bg-secondary/50"
+              title="Chamada de vídeo"
+            >
+              <Video size={20} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onAudioCall}
+              className="text-chat-header-foreground hover:bg-secondary/50"
+              title="Chamada de voz"
+            >
+              <Phone size={20} />
+            </Button>
+          </>
+        )}
         
         {/* Menu de Opções (3 pontos) */}
         <DropdownMenu>

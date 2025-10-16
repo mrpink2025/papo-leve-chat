@@ -20,6 +20,7 @@ import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { isSameDay } from "date-fns";
 
 interface ConversationData {
@@ -108,6 +109,7 @@ const Chat = () => {
   const { trackEvent } = useAnalytics();
   const { markAsRead, getMessageStatus } = useMessageStatus(id, user?.id);
   const { isOnline: isNetworkOnline, addToQueue, removeFromQueue } = useOfflineQueue();
+  const { toast } = useToast();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -194,31 +196,105 @@ const Chat = () => {
         isGroup={conversation.type === "group"}
         conversationId={id}
         otherUserId={conversation.other_participant?.id}
-        onVideoCall={() => {
-          if (id && conversation.other_participant) {
-            startCall(
-              id,
-              'video',
-              {
-                name: conversation.other_participant.full_name || conversation.other_participant.username || 'Usuário',
-                avatar: conversation.other_participant.avatar_url,
-              }
-            );
-            trackEvent({ eventType: 'video_call_started', eventData: { conversationId: id } });
+        onVideoCall={async () => {
+          console.log('[Chat] Tentando iniciar chamada de vídeo:', {
+            conversationId: id,
+            isDirectChat,
+            hasOtherParticipant: !!conversation.other_participant,
+            participantInfo: conversation.other_participant
+          });
+
+          // Verificar se é conversa direta
+          if (!isDirectChat) {
+            toast({
+              title: "Recurso não disponível",
+              description: "Chamadas em grupo ainda não estão disponíveis",
+              variant: "default",
+            });
+            return;
           }
+
+          if (!id || !conversation.other_participant) {
+            toast({
+              title: "Erro ao iniciar chamada",
+              description: "Não foi possível identificar o destinatário",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          // Verificar permissões de mídia
+          try {
+            await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          } catch (error) {
+            console.error('[Chat] Erro ao verificar permissões de mídia:', error);
+            toast({
+              title: "Permissões necessárias",
+              description: "Por favor, permita o acesso à câmera e microfone",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          startCall(
+            id,
+            'video',
+            {
+              name: conversation.other_participant.full_name || conversation.other_participant.username || 'Usuário',
+              avatar: conversation.other_participant.avatar_url,
+            }
+          );
+          trackEvent({ eventType: 'video_call_started', eventData: { conversationId: id } });
         }}
-        onAudioCall={() => {
-          if (id && conversation.other_participant) {
-            startCall(
-              id,
-              'audio',
-              {
-                name: conversation.other_participant.full_name || conversation.other_participant.username || 'Usuário',
-                avatar: conversation.other_participant.avatar_url,
-              }
-            );
-            trackEvent({ eventType: 'audio_call_started', eventData: { conversationId: id } });
+        onAudioCall={async () => {
+          console.log('[Chat] Tentando iniciar chamada de áudio:', {
+            conversationId: id,
+            isDirectChat,
+            hasOtherParticipant: !!conversation.other_participant,
+            participantInfo: conversation.other_participant
+          });
+
+          // Verificar se é conversa direta
+          if (!isDirectChat) {
+            toast({
+              title: "Recurso não disponível",
+              description: "Chamadas em grupo ainda não estão disponíveis",
+              variant: "default",
+            });
+            return;
           }
+
+          if (!id || !conversation.other_participant) {
+            toast({
+              title: "Erro ao iniciar chamada",
+              description: "Não foi possível identificar o destinatário",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          // Verificar permissões de mídia
+          try {
+            await navigator.mediaDevices.getUserMedia({ audio: true });
+          } catch (error) {
+            console.error('[Chat] Erro ao verificar permissões de mídia:', error);
+            toast({
+              title: "Permissões necessárias",
+              description: "Por favor, permita o acesso ao microfone",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          startCall(
+            id,
+            'audio',
+            {
+              name: conversation.other_participant.full_name || conversation.other_participant.username || 'Usuário',
+              avatar: conversation.other_participant.avatar_url,
+            }
+          );
+          trackEvent({ eventType: 'audio_call_started', eventData: { conversationId: id } });
         }}
         onSearch={() => setShowSearch(!showSearch)}
       />
