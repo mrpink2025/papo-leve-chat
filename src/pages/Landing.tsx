@@ -282,8 +282,12 @@ const Landing = () => {
               </Card>
             </div>
 
-            <div className="mt-12 text-center">
+            <div className="mt-12 text-center space-y-2">
               <p className="text-sm text-muted-foreground">
+                Assinado por:{" "}
+                <span className="text-primary font-medium">Mr_Pink</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
                 Powered by{" "}
                 <a 
                   href="https://supabase.com" 
@@ -465,12 +469,15 @@ const Landing = () => {
             </div>
           </div>
 
-          <div className="pt-8 border-t border-border text-center">
-            <p className="text-sm text-muted-foreground">
-              © 2025 Nosso Papo ·{" "}
+          <div className="pt-8 border-t border-border text-center space-y-2">
+            <p className="text-sm text-muted-foreground mb-1">
+              <span className="font-semibold text-primary">Nosso Papo</span> — Assinado por: Mr_Pink
+            </p>
+            <p className="text-xs text-muted-foreground">
+              © 2025 ·{" "}
               <a 
                 href="https://nossopapo.net" 
-                className="hover:text-primary transition-colors"
+                className="hover:text-primary transition-colors underline"
                 target="_blank"
                 rel="noopener noreferrer"
               >

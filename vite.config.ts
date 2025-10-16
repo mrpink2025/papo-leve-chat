@@ -1,18 +1,16 @@
+// Signed by Mr_Pink — Nosso Papo (nossopapo.net)
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
-// https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(() => ({
   server: {
     host: "::",
     port: 8080,
   },
   plugins: [
     react(),
-    mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.png", "app-icon-192.png", "app-icon-512.png"],
@@ -92,7 +90,7 @@ export default defineConfig(({ mode }) => ({
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: "CacheFirst",
             options: {
-              cacheName: "google-fonts-cache",
+              cacheName: "np-google-fonts-cache",
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365, // 1 ano
@@ -106,7 +104,7 @@ export default defineConfig(({ mode }) => ({
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
             handler: "CacheFirst",
             options: {
-              cacheName: "supabase-storage-cache",
+              cacheName: "np-supabase-storage-cache",
               expiration: {
                 maxEntries: 100,
                 maxAgeSeconds: 60 * 60 * 24 * 7, // 1 semana
@@ -117,7 +115,7 @@ export default defineConfig(({ mode }) => ({
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/.*/i,
             handler: "NetworkFirst",
             options: {
-              cacheName: "supabase-api-cache",
+              cacheName: "np-supabase-api-cache",
               networkTimeoutSeconds: 10,
               expiration: {
                 maxEntries: 50,
@@ -131,7 +129,7 @@ export default defineConfig(({ mode }) => ({
         enabled: true,
       },
     }),
-  ].filter(Boolean),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

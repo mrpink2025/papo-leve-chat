@@ -1,3 +1,4 @@
+// Signed by Mr_Pink — Nosso Papo (nossopapo.net)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -191,6 +192,17 @@ serve(async (req) => {
             body: payload.body,
             category: payload.data?.category || "messages",
             priority: payload.data?.priority || "normal",
+          });
+
+          // Registrar analytics
+          await supabase.from("analytics_events").insert({
+            user_id: recipientId,
+            event_type: "np_push_sent",
+            event_data: {
+              conversation_id: payload.data?.conversationId,
+              category: payload.data?.category,
+              priority: payload.data?.priority,
+            },
           });
 
           return { success: true, endpoint: subscription.endpoint };

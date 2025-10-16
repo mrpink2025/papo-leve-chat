@@ -37,7 +37,7 @@ export const useNotificationTelemetry = () => {
         // Inserir no analytics_events
         const { error } = await supabase.from('analytics_events').insert({
           user_id: user.id,
-          event_type: `notification_${metric.type}`,
+          event_type: `np_notification_${metric.type}`,
           event_data: eventData,
         });
 
@@ -131,7 +131,7 @@ export const useNotificationTelemetry = () => {
           .from('analytics_events')
           .select('event_type, event_data, created_at')
           .eq('user_id', user.id)
-          .like('event_type', 'notification_%')
+          .like('event_type', 'np_notification_%')
           .gte('created_at', since.toISOString());
 
         if (error) throw error;
@@ -139,18 +139,18 @@ export const useNotificationTelemetry = () => {
         // Calcular estatísticas
         const stats = {
           total: data?.length || 0,
-          sent: data?.filter((e) => e.event_type === 'notification_sent').length || 0,
-          delivered: data?.filter((e) => e.event_type === 'notification_delivered').length || 0,
-          opened: data?.filter((e) => e.event_type === 'notification_opened').length || 0,
-          failed: data?.filter((e) => e.event_type === 'notification_failed').length || 0,
-          blocked: data?.filter((e) => e.event_type === 'notification_blocked').length || 0,
+          sent: data?.filter((e) => e.event_type === 'np_notification_sent').length || 0,
+          delivered: data?.filter((e) => e.event_type === 'np_notification_delivered').length || 0,
+          opened: data?.filter((e) => e.event_type === 'np_notification_opened').length || 0,
+          failed: data?.filter((e) => e.event_type === 'np_notification_failed').length || 0,
+          blocked: data?.filter((e) => e.event_type === 'np_notification_blocked').length || 0,
           avgLatencyMs: 0,
           deliveryRate: 0,
           openRate: 0,
         };
 
         // Calcular latência média
-        const sentEvents = data?.filter((e) => e.event_type === 'notification_sent') || [];
+        const sentEvents = data?.filter((e) => e.event_type === 'np_notification_sent') || [];
         if (sentEvents.length > 0) {
           const totalLatency = sentEvents.reduce((sum, e) => {
             const eventData = e.event_data as any;

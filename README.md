@@ -1,22 +1,17 @@
-# Welcome to your Lovable project
+# Nosso Papo
 
-## Project info
+**Assinado por: Mr_Pink**  
+**Website**: https://nossopapo.net
 
-**URL**: https://lovable.dev/projects/00041d7e-49c0-496b-9909-3c1da7c2e467
+## Sobre o Projeto
 
-## How can I edit this code?
+Aplicativo de mensagens rápido, acolhedor e divertido. Onde cada conversa importa.
 
-There are several ways of editing your application.
+## Como editar este código?
 
-**Use Lovable**
+**Use seu IDE preferido**
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/00041d7e-49c0-496b-9909-3c1da7c2e467) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Clone este repositório e faça push das alterações.
 
 The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
@@ -60,14 +55,10 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
-## How can I deploy this project?
+## Como fazer deploy?
 
-Simply open [Lovable](https://lovable.dev/projects/00041d7e-49c0-496b-9909-3c1da7c2e467) and click on Share -> Publish.
+Este projeto pode ser hospedado em qualquer servidor que suporte aplicações React com Vite.
 
-## Can I connect a custom domain to my Lovable project?
+## Licenças de Terceiros
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Este projeto utiliza bibliotecas de código aberto. Veja `package.json` para a lista completa de dependências e suas respectivas licenças.

@@ -1,5 +1,5 @@
-// Service Worker customizado para notificações push com sincronização multi-device
-// Este arquivo será importado pelo Workbox
+// Signed by Mr_Pink — Nosso Papo (nossopapo.net)
+// Service Worker para notificações push com sincronização multi-device
 
 // Variável global para tracking de notificações (deduplicação)
 let notificationDedupeCache = new Map();
