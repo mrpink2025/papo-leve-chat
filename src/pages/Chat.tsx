@@ -182,6 +182,7 @@ const Chat = () => {
         lastSeen={lastSeen}
         isGroup={conversation.type === "group"}
         conversationId={id}
+        otherUserId={conversation.other_participant?.id}
         onVideoCall={() => {
           if (id) {
             startCall(id, true);
