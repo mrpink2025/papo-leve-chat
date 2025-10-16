@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -31,6 +33,15 @@ export const IncomingNativeCallDialog = ({
   return (
     <Dialog open={open}>
       <DialogContent className="max-w-md bg-gradient-to-b from-gray-900 to-black border-none text-white">
+        {/* Títulos para acessibilidade (visualmente ocultos) */}
+        <DialogTitle className="sr-only">
+          Chamada recebida de {callerName}
+        </DialogTitle>
+        <DialogDescription className="sr-only">
+          {callType === 'video' ? 'Chamada de vídeo' : 'Chamada de áudio'} recebida. 
+          Pressione Aceitar para atender ou Recusar para rejeitar.
+        </DialogDescription>
+
         <div className="flex flex-col items-center py-8">
           {/* Avatar com animação de pulse */}
           <motion.div

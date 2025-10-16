@@ -28,6 +28,7 @@ export class WebRTCCall {
   private callType: CallType;
   private isInitiator: boolean;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
+  private currentStatus: CallStatus = 'idle';
   
   // ✅ Transceivers estáveis (ordem fixa dos m-lines)
   private audioTransceiver?: RTCRtpTransceiver;
@@ -79,9 +80,13 @@ export class WebRTCCall {
   // Iniciar chamada
   async start(): Promise<void> {
     try {
-      this.logEvent('CALL_START_INITIATED', { route: window.location.pathname });
-      console.log(`[WebRTC] Iniciando chamada ${this.callType}...`);
-      this.updateStatus('calling');
+    this.logEvent('CALL_START_INITIATED', { 
+      route: window.location.pathname,
+      role: this.isInitiator ? 'caller' : 'callee',
+      initialStatus: this.isInitiator ? 'calling' : 'connecting'
+    });
+    console.log(`[WebRTC] Iniciando chamada ${this.callType}...`);
+    this.updateStatus(this.isInitiator ? 'calling' : 'connecting');
 
       // Solicitar permissões e capturar mídia local
       await this.setupLocalMedia();
@@ -104,8 +109,13 @@ export class WebRTCCall {
       // Monitorar qualidade da conexão
       this.startConnectionQualityMonitor();
 
-      console.log('[WebRTC] Chamada iniciada com sucesso');
-      this.logEvent('CALL_START_SUCCESS');
+    console.log('[WebRTC] Chamada iniciada com sucesso');
+    this.logEvent('CALL_START_SUCCESS', {
+      role: this.isInitiator ? 'caller' : 'callee',
+      currentStatus: this.currentStatus,
+      hasLocalStream: !!this.localStream,
+      hasRemoteStream: !!this.remoteStream
+    });
     } catch (error: any) {
       console.error('[WebRTC] Erro ao iniciar chamada:', error);
       this.logEvent('CALL_START_FAILED', { error: error.message });
@@ -735,6 +745,7 @@ export class WebRTCCall {
 
   // Atualizar status
   private updateStatus(status: CallStatus): void {
+    this.currentStatus = status;
     this.logEvent('STATUS_CHANGE', { status });
     
     // Atualizar status no banco de dados
