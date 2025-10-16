@@ -133,25 +133,33 @@ const GroupSettingsDialog = ({
 
       // Upload new avatar if selected
       if (avatarFile) {
-        const fileExt = avatarFile.name.split(".").pop();
-        const fileName = `${conversationId}.${fileExt}`;
-        const filePath = `${fileName}`;
+        try {
+          const fileExt = avatarFile.name.split(".").pop();
+          const fileName = `${conversationId}.${fileExt}`;
+          const filePath = `${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(filePath, avatarFile, { upsert: true });
+          const { error: uploadError } = await supabase.storage
+            .from("avatars")
+            .upload(filePath, avatarFile, { upsert: true });
 
-        if (uploadError) throw uploadError;
+          if (uploadError) {
+            console.error("Upload error:", uploadError);
+            throw new Error(`Erro ao enviar imagem: ${uploadError.message}`);
+          }
 
-        const { data: urlData } = supabase.storage
-          .from("avatars")
-          .getPublicUrl(filePath);
+          const { data: urlData } = supabase.storage
+            .from("avatars")
+            .getPublicUrl(filePath);
 
-        avatarUrl = urlData.publicUrl;
+          avatarUrl = urlData.publicUrl;
+        } catch (error: any) {
+          console.error("Avatar upload error:", error);
+          throw error;
+        }
       }
 
       // Update conversation
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from("conversations")
         .update({
           name: groupName,
@@ -159,7 +167,10 @@ const GroupSettingsDialog = ({
         })
         .eq("id", conversationId);
 
-      if (error) throw error;
+      if (updateError) {
+        console.error("Update error:", updateError);
+        throw new Error(`Erro ao atualizar: ${updateError.message}`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["group", conversationId] });
@@ -172,9 +183,10 @@ const GroupSettingsDialog = ({
       });
     },
     onError: (error: any) => {
+      console.error("Mutation error:", error);
       toast({
         title: "Erro ao atualizar grupo",
-        description: error.message,
+        description: error.message || "Ocorreu um erro ao atualizar o grupo",
         variant: "destructive",
       });
     },

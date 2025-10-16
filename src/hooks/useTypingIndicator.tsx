@@ -17,20 +17,43 @@ export const useTypingIndicator = (
 
       const { data, error } = await supabase
         .from("typing_indicators")
-        .select(`
-          user_id,
-          profiles (username, full_name)
-        `)
+        .select("user_id")
         .eq("conversation_id", conversationId)
         .eq("is_typing", true)
         .neq("user_id", userId);
 
-      if (error) throw error;
-      return data;
+      if (error) {
+        console.error("Error fetching typing indicators:", error);
+        return [];
+      }
+
+      // Fetch profiles separately
+      if (!data || data.length === 0) return [];
+
+      const userNames = await Promise.all(
+        data.map(async (indicator) => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("username, full_name")
+            .eq("id", indicator.user_id)
+            .single();
+
+          return profile ? profile.full_name || profile.username : null;
+        })
+      );
+
+      return userNames.filter(Boolean);
     },
     enabled: !!conversationId && !!userId,
     refetchInterval: 3000,
   });
+
+  // Update typing users from query
+  useEffect(() => {
+    if (typingData) {
+      setTypingUsers(typingData as string[]);
+    }
+  }, [typingData]);
 
   // Subscribe to real-time typing indicators
   useEffect(() => {
