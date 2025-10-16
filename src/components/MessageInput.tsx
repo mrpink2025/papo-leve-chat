@@ -1,12 +1,13 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Smile, Image as ImageIcon, Mic, File as FileIcon, Video, Loader2, Plus } from "lucide-react";
+import { Send, Smile, Image as ImageIcon, Mic, File as FileIcon, Video, Loader2, Plus, Camera, Film } from "lucide-react";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 import ReplyPreview from "./ReplyPreview";
 import VoiceRecorder from "./VoiceRecorder";
+import VideoRecorder from "./VideoRecorder";
 import {
   Popover,
   PopoverContent,
@@ -17,6 +18,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 
 interface MessageInputProps {
@@ -31,6 +35,7 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showRecorder, setShowRecorder] = useState(false);
+  const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
@@ -94,6 +99,22 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
     setShowRecorder(false);
   };
 
+  const handleVideoSend = async (videoBlob: Blob) => {
+    if (!conversationId) return;
+
+    const file = new File(
+      [videoBlob],
+      `video_${Date.now()}.webm`,
+      { type: "video/webm" }
+    );
+
+    const url = await uploadFile({ file, conversationId, type: "video" });
+    if (url) {
+      onSendMessage("Vídeo", "video", { url, filename: file.name });
+    }
+    setShowVideoRecorder(false);
+  };
+
   const handleMessageChange = (value: string) => {
     setMessage(value);
 
@@ -115,6 +136,10 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
 
   if (showRecorder) {
     return <VoiceRecorder onSend={handleVoiceSend} onCancel={() => setShowRecorder(false)} />;
+  }
+
+  if (showVideoRecorder) {
+    return <VideoRecorder onSend={handleVideoSend} onCancel={() => setShowVideoRecorder(false)} />;
   }
 
   return (
@@ -202,15 +227,30 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
               <span className="font-medium">Imagem</span>
             </DropdownMenuItem>
             
-            <DropdownMenuItem
-              onClick={() => videoInputRef.current?.click()}
-              className="flex items-center gap-3 py-3 cursor-pointer hover:bg-accent"
-            >
-              <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
-                <Video size={20} className="text-purple-500" />
-              </div>
-              <span className="font-medium">Vídeo</span>
-            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="flex items-center gap-3 py-3 cursor-pointer">
+                <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                  <Video size={20} className="text-purple-500" />
+                </div>
+                <span className="font-medium">Vídeo</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="bg-card">
+                <DropdownMenuItem
+                  onClick={() => setShowVideoRecorder(true)}
+                  className="flex items-center gap-2 py-2 cursor-pointer"
+                >
+                  <Camera size={18} className="text-purple-500" />
+                  <span>Gravar Vídeo</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => videoInputRef.current?.click()}
+                  className="flex items-center gap-2 py-2 cursor-pointer"
+                >
+                  <Film size={18} className="text-purple-500" />
+                  <span>Escolher da Galeria</span>
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             
             <DropdownMenuItem
               onClick={() => documentInputRef.current?.click()}
