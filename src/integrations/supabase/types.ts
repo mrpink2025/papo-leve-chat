@@ -809,7 +809,19 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      notification_stats: {
+        Row: {
+          avg_latency_ms: number | null
+          blocked_count: number | null
+          date: string | null
+          delivered_count: number | null
+          failed_count: number | null
+          opened_count: number | null
+          sent_count: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       cleanup_expired_notifications: {
@@ -817,6 +829,10 @@ export type Database = {
         Returns: undefined
       }
       cleanup_old_calls: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      cleanup_old_telemetry: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }

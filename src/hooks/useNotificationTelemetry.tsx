@@ -152,10 +152,10 @@ export const useNotificationTelemetry = () => {
         // Calcular latência média
         const sentEvents = data?.filter((e) => e.event_type === 'notification_sent') || [];
         if (sentEvents.length > 0) {
-          const totalLatency = sentEvents.reduce(
-            (sum, e) => sum + (e.event_data?.latency_ms || 0),
-            0
-          );
+          const totalLatency = sentEvents.reduce((sum, e) => {
+            const eventData = e.event_data as any;
+            return sum + (eventData?.latency_ms || 0);
+          }, 0);
           stats.avgLatencyMs = Math.round(totalLatency / sentEvents.length);
         }
 
