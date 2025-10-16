@@ -47,17 +47,18 @@ export const useInstallPrompt = () => {
       setInstallPrompt(e as BeforeInstallPromptEvent);
     };
 
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-
     // Detectar quando o app é instalado
-    window.addEventListener("appinstalled", () => {
+    const handleAppInstalled = () => {
       console.log("✅ [PWA Debug] App installed!");
       setIsInstalled(true);
       setInstallPrompt(null);
-    });
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
 
     // Log após 3 segundos se o evento não disparou
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       if (!installPrompt && !isIOSDevice && !installed) {
         console.warn("⚠️ [PWA Debug] beforeinstallprompt não disparou após 3s");
         console.warn("⚠️ Possíveis causas:");
@@ -70,6 +71,8 @@ export const useInstallPrompt = () => {
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+      clearTimeout(timeoutId);
     };
   }, []);
 
@@ -94,7 +97,7 @@ export const useInstallPrompt = () => {
     isInstalled,
     isIOS,
     isPWACapable,
-    canInstall: !isInstalled && (!!installPrompt || (isIOS && isPWACapable)),
+    canInstall: !isInstalled && !!installPrompt,
     promptInstall,
   };
 };

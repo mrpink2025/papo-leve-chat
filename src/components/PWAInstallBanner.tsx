@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,17 +24,7 @@ const PWAInstallBanner = () => {
         localStorage.removeItem("pwa_banner_dismissed_until");
       }
     }
-
-    // Log de debug
-    console.log("🎨 [PWA Banner] Debug:");
-    console.log("  - isInstalled:", isInstalled);
-    console.log("  - isDismissed:", isDismissed);
-    console.log("  - canInstall:", canInstall);
-    console.log("  - isIOS:", isIOS);
-    console.log("  - isPWACapable:", isPWACapable);
-    console.log("  - current route:", location.pathname);
-    console.log("  - isTestMode:", isTestMode);
-  }, [isInstalled, isDismissed, canInstall, isIOS, isPWACapable, location.pathname, isTestMode]);
+  }, []);
 
   const handleDismiss = () => {
     setIsDismissed(true);
@@ -63,21 +53,16 @@ const PWAInstallBanner = () => {
   // 2. Foi dispensado recentemente (a menos que esteja em modo teste)
   // 3. Não pode ser instalado
   // 4. Está na rota de chat (/app/chat/:id ou /chat/:id)
-  const isInChatRoute = location.pathname.startsWith("/app/chat") || location.pathname.startsWith("/chat/");
+  const isInChatRoute = useMemo(
+    () => location.pathname.startsWith("/app/chat") || location.pathname.startsWith("/chat/"),
+    [location.pathname]
+  );
   
   // Modo teste ignora todas as restrições
   if (isTestMode) {
     console.log("🧪 [PWA Banner] Modo de teste ativado - exibindo banner");
   } else if (isInstalled || isDismissed || !canInstall || isInChatRoute) {
-    console.log("🚫 [PWA Banner] Banner oculto:", {
-      isInstalled,
-      isDismissed,
-      canInstall,
-      isInChatRoute
-    });
     return null;
-  } else {
-    console.log("✅ [PWA Banner] Exibindo banner!");
   }
 
   return (
