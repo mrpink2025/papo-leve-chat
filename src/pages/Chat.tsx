@@ -45,6 +45,7 @@ const Chat = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const processedMessagesRef = useRef<Set<string>>(new Set());
   const [replyToMessage, setReplyToMessage] = useState<{ id: string; content: string } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
@@ -132,13 +133,18 @@ const Chat = () => {
   // Mark messages as read when conversation is visible
   useEffect(() => {
     if (!id || !user?.id || !messages.length) return;
+    if (document.visibilityState !== "visible") return;
 
     const unreadMessages = messages.filter(
-      (msg: any) => msg.sender_id !== user.id && getMessageStatus(msg.id) !== "read"
+      (msg: any) => 
+        msg.sender_id !== user.id && 
+        getMessageStatus(msg.id) !== "read" &&
+        !processedMessagesRef.current.has(msg.id)
     );
 
-    if (unreadMessages.length > 0 && document.visibilityState === "visible") {
+    if (unreadMessages.length > 0) {
       unreadMessages.forEach((msg: any) => {
+        processedMessagesRef.current.add(msg.id);
         markAsRead(msg.id);
       });
     }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -8,6 +8,7 @@ export const useMessageStatus = (
 ) => {
   const queryClient = useQueryClient();
   const [messageStatuses, setMessageStatuses] = useState<Record<string, string>>({});
+  const updateTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Mark messages as delivered when viewing conversation
   useEffect(() => {
@@ -54,6 +55,26 @@ export const useMessageStatus = (
     markAsDelivered();
   }, [conversationId, userId, messageStatuses]);
 
+  const scheduleLastReadUpdate = () => {
+    if (!conversationId || !userId) return;
+    
+    if (updateTimerRef.current) {
+      clearTimeout(updateTimerRef.current);
+    }
+    
+    updateTimerRef.current = setTimeout(async () => {
+      try {
+        await supabase
+          .from("conversation_participants")
+          .update({ last_read_at: new Date().toISOString() })
+          .eq("conversation_id", conversationId)
+          .eq("user_id", userId);
+      } catch (error) {
+        console.error('[useMessageStatus] Error updating last_read_at:', error);
+      }
+    }, 1500);
+  };
+
   const markAsRead = async (messageId: string) => {
     if (!userId) return;
 
@@ -75,12 +96,8 @@ export const useMessageStatus = (
           { onConflict: 'message_id,user_id' }
         );
 
-      // Update last_read_at for the conversation
-      await supabase
-        .from("conversation_participants")
-        .update({ last_read_at: new Date().toISOString() })
-        .eq("conversation_id", conversationId)
-        .eq("user_id", userId);
+      // Schedule debounced update of last_read_at
+      scheduleLastReadUpdate();
     } catch (error: any) {
       // Ignore 409 conflicts
       if (error?.code !== '23505' && !error?.message?.includes('409')) {
