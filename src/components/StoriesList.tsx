@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { StoryViewer } from './StoryViewer';
 import { CreateStoryDialog } from './CreateStoryDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 const getAvatarUrl = (avatarPath: string | null) => {
   if (!avatarPath) return null;
@@ -19,6 +20,26 @@ export const StoriesList = () => {
   const { user } = useAuth();
   const [selectedStoryIndex, setSelectedStoryIndex] = useState<number | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+
+  // Load current user's profile avatar as fallback
+  const { data: currentProfile } = useQuery({
+    queryKey: ['current-profile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const currentAvatarUrl = getAvatarUrl(
+    (currentProfile as any)?.avatar_url || user?.user_metadata?.avatar_url || null
+  );
 
   const userStories = stories?.filter((s: any) => s.user_id === user?.id);
   const otherStories = stories?.filter((s: any) => s.user_id !== user?.id);
@@ -69,7 +90,7 @@ export const StoriesList = () => {
         >
           <div className="relative">
             <Avatar className={`h-16 w-16 ${hasUserStories ? 'ring-2 ring-primary' : 'ring-2 ring-muted'}`}>
-              <AvatarImage src={getAvatarUrl(user?.user_metadata?.avatar_url) || undefined} />
+              <AvatarImage src={currentAvatarUrl || undefined} />
               <AvatarFallback>Você</AvatarFallback>
             </Avatar>
             {hasUserStories ? (
