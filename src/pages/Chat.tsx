@@ -226,8 +226,24 @@ const Chat = () => {
 
   const handleSendPrivateMessage = async (userId: string) => {
     try {
+      // Verificar autenticação explicitamente
+      const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !currentUser) {
+        console.error('[Chat] Erro de autenticação:', authError);
+        toast({
+          title: "Sessão expirada",
+          description: "Por favor, faça login novamente",
+          variant: "destructive",
+        });
+        navigate('/auth');
+        return;
+      }
+      
+      console.log('[Chat] Usuário autenticado:', currentUser.id);
+      
       // Validação 1: Não pode enviar mensagem para si mesmo
-      if (userId === user?.id) {
+      if (userId === currentUser.id) {
         toast({
           title: "Ação inválida",
           description: "Você não pode enviar mensagem para si mesmo",
@@ -252,7 +268,7 @@ const Chat = () => {
       const { data: myParticipations } = await supabase
         .from('conversation_participants')
         .select('conversation_id')
-        .eq('user_id', user?.id);
+        .eq('user_id', currentUser.id);
       
       if (!myParticipations) return;
       
@@ -275,7 +291,7 @@ const Chat = () => {
           .eq('conversation_id', conv.id);
         
         if (participants) {
-          const otherUserId = participants.find(p => p.user_id !== user?.id)?.user_id;
+          const otherUserId = participants.find(p => p.user_id !== currentUser.id)?.user_id;
           if (otherUserId === userId) {
             // Conversa já existe
             navigate(`/chat/${conv.id}`);
@@ -285,22 +301,39 @@ const Chat = () => {
       }
       
       // Criar nova conversa
+      console.log('[Chat] Criando nova conversa direta com created_by:', currentUser.id);
+      
       const { data: newConv, error: convError } = await supabase
         .from('conversations')
         .insert({
           type: 'direct',
-          created_by: user?.id,
+          created_by: currentUser.id,
         })
         .select()
         .single();
       
-      if (convError) throw convError;
+      if (convError) {
+        console.error('[Chat] Erro ao criar conversa:', convError);
+        
+        // Se erro 403 (RLS policy violation), problema de autenticação
+        if (convError.code === '42501') {
+          toast({
+            title: "Erro de permissão",
+            description: "Faça login novamente para criar conversas",
+            variant: "destructive",
+          });
+          navigate('/auth');
+          return;
+        }
+        
+        throw convError;
+      }
       
       // Adicionar participantes
       const { error: partError } = await supabase
         .from('conversation_participants')
         .insert([
-          { conversation_id: newConv.id, user_id: user?.id },
+          { conversation_id: newConv.id, user_id: currentUser.id },
           { conversation_id: newConv.id, user_id: userId },
         ]);
       
