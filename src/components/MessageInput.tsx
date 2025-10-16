@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Smile, Image as ImageIcon, Mic, File as FileIcon, Video, Loader2 } from "lucide-react";
+import { Send, Smile, Image as ImageIcon, Mic, File as FileIcon, Video, Loader2, Plus } from "lucide-react";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
@@ -12,6 +12,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface MessageInputProps {
   onSendMessage: (content: string, type?: string, metadata?: any, replyTo?: string) => void;
@@ -124,21 +130,7 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
       )}
       
       <div className="flex items-end gap-2 p-4">
-        <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground shrink-0"
-            >
-              <Smile size={20} />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-full p-0 border-none" align="start">
-            <EmojiPicker onEmojiClick={handleEmojiClick} width="100%" />
-          </PopoverContent>
-        </Popover>
-
+        {/* Hidden file inputs */}
         <input
           ref={fileInputRef}
           type="file"
@@ -161,46 +153,78 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
           className="hidden"
         />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground shrink-0"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading || !conversationId}
-        >
-          {uploading ? <Loader2 size={20} className="animate-spin" /> : <ImageIcon size={20} />}
-        </Button>
+        {/* Botão de Emoji */}
+        <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+              title="Emoji"
+            >
+              <Smile size={22} />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-full p-0 border-none shadow-lg" align="start" side="top">
+            <EmojiPicker onEmojiClick={handleEmojiClick} width="100%" />
+          </PopoverContent>
+        </Popover>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground shrink-0"
-          onClick={() => videoInputRef.current?.click()}
-          disabled={uploading || !conversationId}
-        >
-          <Video size={20} />
-        </Button>
+        {/* Menu de Anexos (estilo WhatsApp) */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+              disabled={uploading || !conversationId}
+              title="Anexar"
+            >
+              {uploading ? (
+                <Loader2 size={22} className="animate-spin" />
+              ) : (
+                <Plus size={22} />
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent 
+            align="start" 
+            side="top"
+            className="w-48 bg-card shadow-lg"
+          >
+            <DropdownMenuItem
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-3 py-3 cursor-pointer hover:bg-accent"
+            >
+              <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                <ImageIcon size={20} className="text-blue-500" />
+              </div>
+              <span className="font-medium">Imagem</span>
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem
+              onClick={() => videoInputRef.current?.click()}
+              className="flex items-center gap-3 py-3 cursor-pointer hover:bg-accent"
+            >
+              <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                <Video size={20} className="text-purple-500" />
+              </div>
+              <span className="font-medium">Vídeo</span>
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem
+              onClick={() => documentInputRef.current?.click()}
+              className="flex items-center gap-3 py-3 cursor-pointer hover:bg-accent"
+            >
+              <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                <FileIcon size={20} className="text-green-500" />
+              </div>
+              <span className="font-medium">Documento</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground shrink-0"
-          onClick={() => documentInputRef.current?.click()}
-          disabled={uploading || !conversationId}
-        >
-          <FileIcon size={20} />
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground shrink-0"
-          onClick={() => setShowRecorder(true)}
-          disabled={!conversationId}
-        >
-          <Mic size={20} />
-        </Button>
-
+        {/* Campo de mensagem */}
         <Textarea
           value={message}
           onChange={(e) => handleMessageChange(e.target.value)}
@@ -213,14 +237,29 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
           disabled={!conversationId}
         />
 
-        <Button
-          onClick={handleSend}
-          size="icon"
-          className="bg-primary hover:bg-primary-glow text-primary-foreground shrink-0 transition-all hover:scale-105"
-          disabled={!message.trim() || !conversationId}
-        >
-          <Send size={20} />
-        </Button>
+        {/* Botão de Enviar ou Áudio (estilo WhatsApp) */}
+        {message.trim() ? (
+          <Button
+            onClick={handleSend}
+            size="icon"
+            className="bg-primary hover:bg-primary-glow text-primary-foreground shrink-0 transition-all hover:scale-105"
+            disabled={!conversationId}
+            title="Enviar mensagem"
+          >
+            <Send size={20} />
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+            onClick={() => setShowRecorder(true)}
+            disabled={!conversationId}
+            title="Gravar áudio"
+          >
+            <Mic size={22} />
+          </Button>
+        )}
       </div>
     </div>
   );
