@@ -12,28 +12,46 @@ export const useStories = () => {
   const { data: stories, isLoading, error: queryError } = useQuery({
     queryKey: ['stories'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch stories without embed
+      const { data: storiesData, error: storiesError } = await supabase
         .from('stories')
-        .select(`
-          *,
-          profiles!stories_user_id_fkey (
-            id,
-            username,
-            full_name,
-            avatar_url
-          )
-        `)
+        .select('*')
         .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('❌ Stories query error:', error);
-        throw error;
+      if (storiesError) {
+        console.error('❌ Stories query error:', storiesError);
+        throw storiesError;
       }
-      
-      console.log('✅ Stories loaded:', data?.length || 0, 'stories');
-      console.log('📊 Stories data:', data);
-      return data;
+
+      if (!storiesData || storiesData.length === 0) {
+        console.log('✅ No stories found');
+        return [];
+      }
+
+      // Extract unique user IDs
+      const userIds = [...new Set(storiesData.map((s) => s.user_id))];
+
+      // Fetch profiles separately
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, full_name, avatar_url')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.error('❌ Profiles query error:', profilesError);
+        throw profilesError;
+      }
+
+      // Map profiles to stories
+      const profileById = new Map(profiles?.map((p) => [p.id, p]) || []);
+      const storiesWithProfile = storiesData.map((s) => ({
+        ...s,
+        profile: profileById.get(s.user_id) || null,
+      }));
+
+      console.log('✅ Stories loaded:', storiesWithProfile.length, 'stories');
+      return storiesWithProfile;
     },
     enabled: !!user,
   });

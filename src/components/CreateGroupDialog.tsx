@@ -30,21 +30,25 @@ export const CreateGroupDialog = () => {
     queryKey: ["contacts", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
+      
+      // Fetch contact relationships
+      const { data: contactRels, error: relsError } = await supabase
         .from("contacts")
-        .select(`
-          contact_id,
-          profiles:contact_id (
-            id,
-            username,
-            full_name,
-            avatar_url
-          )
-        `)
+        .select("contact_id")
         .eq("user_id", user.id);
 
-      if (error) throw error;
-      return data.map((c: any) => c.profiles).filter(Boolean);
+      if (relsError) throw relsError;
+      if (!contactRels || contactRels.length === 0) return [];
+
+      // Fetch profiles separately
+      const contactIds = contactRels.map((c) => c.contact_id);
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, username, full_name, avatar_url")
+        .in("id", contactIds);
+
+      if (profilesError) throw profilesError;
+      return profiles || [];
     },
     enabled: !!user?.id,
   });

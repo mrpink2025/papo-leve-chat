@@ -28,20 +28,10 @@ export const useConversations = (userId: string | undefined, includeArchived = f
     queryFn: async () => {
       if (!userId) return [];
 
+      // Fetch participations without embed
       let query = supabase
         .from("conversation_participants")
-        .select(`
-          conversation_id,
-          last_read_at,
-          archived,
-          conversations (
-            id,
-            type,
-            name,
-            avatar_url,
-            updated_at
-          )
-        `)
+        .select("conversation_id, last_read_at, archived")
         .eq("user_id", userId);
 
       if (!includeArchived) {
@@ -49,12 +39,54 @@ export const useConversations = (userId: string | undefined, includeArchived = f
       }
 
       const { data: participations, error } = await query;
-
       if (error) throw error;
+      if (!participations || participations.length === 0) return [];
 
-      const conversations = await Promise.all(
+      // Fetch conversations separately
+      const convIds = [...new Set(participations.map((p) => p.conversation_id))];
+      const { data: conversations, error: convsError } = await supabase
+        .from("conversations")
+        .select("id, type, name, avatar_url, updated_at")
+        .in("id", convIds);
+
+      if (convsError) throw convsError;
+
+      const convById = new Map(conversations?.map((c) => [c.id, c]) || []);
+
+      // For direct conversations, fetch other participants
+      const { data: allParticipants, error: partsError } = await supabase
+        .from("conversation_participants")
+        .select("conversation_id, user_id")
+        .in("conversation_id", convIds);
+
+      if (partsError) throw partsError;
+
+      const otherUserIds = [
+        ...new Set(
+          allParticipants
+            ?.filter((p) => p.user_id !== userId)
+            .map((p) => p.user_id) || []
+        ),
+      ];
+
+      const { data: otherProfiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, username, full_name, avatar_url, status")
+        .in("id", otherUserIds);
+
+      if (profilesError) throw profilesError;
+
+      const profileById = new Map(otherProfiles?.map((p) => [p.id, p]) || []);
+      const convIdToOtherUserId = new Map(
+        allParticipants
+          ?.filter((p) => p.user_id !== userId)
+          .map((p) => [p.conversation_id, p.user_id]) || []
+      );
+
+      const enrichedConversations = await Promise.all(
         participations.map(async (p: any) => {
-          const conversation = p.conversations;
+          const conversation = convById.get(p.conversation_id);
+          if (!conversation) return null;
 
           // Get last message
           const { data: lastMessage } = await supabase
@@ -75,23 +107,9 @@ export const useConversations = (userId: string | undefined, includeArchived = f
           // For direct conversations, get other participant
           let otherParticipant = null;
           if (conversation.type === "direct") {
-            const { data: participants } = await supabase
-              .from("conversation_participants")
-              .select(`
-                user_id,
-                profiles (
-                  id,
-                  username,
-                  full_name,
-                  avatar_url,
-                  status
-                )
-              `)
-              .eq("conversation_id", conversation.id)
-              .neq("user_id", userId);
-
-            if (participants && participants.length > 0) {
-              otherParticipant = participants[0].profiles;
+            const otherUserId = convIdToOtherUserId.get(conversation.id);
+            if (otherUserId) {
+              otherParticipant = profileById.get(otherUserId) || null;
             }
           }
 
@@ -105,10 +123,12 @@ export const useConversations = (userId: string | undefined, includeArchived = f
         })
       );
 
-      return conversations.sort(
-        (a, b) =>
-          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      );
+      return enrichedConversations
+        .filter((c) => c !== null)
+        .sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        );
     },
     enabled: !!userId,
   });

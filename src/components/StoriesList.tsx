@@ -85,7 +85,7 @@ export const StoriesList = () => {
             .filter((group: any) => group[0]?.user_id !== user?.id)
             .map((group: any, index: number) => {
               const firstStory = group[0];
-              const profile = firstStory.profiles;
+              const profile = firstStory.profile;
               const actualIndex = storyGroups.findIndex((g: any) => g[0]?.user_id === firstStory.user_id);
               
               return (
