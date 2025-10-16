@@ -8,57 +8,85 @@ export const useMessageStatus = (
 ) => {
   const queryClient = useQueryClient();
   const [messageStatuses, setMessageStatuses] = useState<Record<string, string>>({});
+  
   // Mark messages as delivered when viewing conversation
   useEffect(() => {
     if (!conversationId || !userId) return;
 
     const markAsDelivered = async () => {
-      // Get undelivered messages
-      const { data: messages } = await supabase
-        .from("messages")
-        .select("id")
-        .eq("conversation_id", conversationId)
-        .neq("sender_id", userId);
+      try {
+        // Get undelivered messages
+        const { data: messages } = await supabase
+          .from("messages")
+          .select("id")
+          .eq("conversation_id", conversationId)
+          .neq("sender_id", userId);
 
-      if (messages && messages.length > 0) {
-        for (const message of messages) {
-          await supabase
-            .from("message_status")
-            .upsert(
-              {
-                message_id: message.id,
-                user_id: userId,
-                status: "delivered",
-              },
-              { onConflict: 'message_id,user_id' }
-            );
+        if (messages && messages.length > 0) {
+          // Filter only messages that aren't already delivered or read
+          const toMark = messages.filter(msg => {
+            const status = messageStatuses[msg.id];
+            return status !== "delivered" && status !== "read";
+          });
+
+          if (toMark.length > 0) {
+            // Batch upsert with conflict resolution
+            const updates = toMark.map(msg => ({
+              message_id: msg.id,
+              user_id: userId,
+              status: "delivered",
+              timestamp: new Date().toISOString(),
+            }));
+
+            await supabase
+              .from("message_status")
+              .upsert(updates, { onConflict: 'message_id,user_id' });
+          }
+        }
+      } catch (error: any) {
+        // Ignore 409 conflicts - they mean the record already exists
+        if (error?.code !== '23505' && !error?.message?.includes('409')) {
+          console.error('[useMessageStatus] Error marking as delivered:', error);
         }
       }
     };
 
     markAsDelivered();
-  }, [conversationId, userId]);
+  }, [conversationId, userId, messageStatuses]);
 
   const markAsRead = async (messageId: string) => {
     if (!userId) return;
 
-    await supabase
-      .from("message_status")
-      .upsert(
-        {
-          message_id: messageId,
-          user_id: userId,
-          status: "read",
-        },
-        { onConflict: 'message_id,user_id' }
-      );
+    // Skip if already read
+    if (messageStatuses[messageId] === "read") {
+      return;
+    }
 
-    // Update last_read_at for the conversation
-    await supabase
-      .from("conversation_participants")
-      .update({ last_read_at: new Date().toISOString() })
-      .eq("conversation_id", conversationId)
-      .eq("user_id", userId);
+    try {
+      await supabase
+        .from("message_status")
+        .upsert(
+          {
+            message_id: messageId,
+            user_id: userId,
+            status: "read",
+            timestamp: new Date().toISOString(),
+          },
+          { onConflict: 'message_id,user_id' }
+        );
+
+      // Update last_read_at for the conversation
+      await supabase
+        .from("conversation_participants")
+        .update({ last_read_at: new Date().toISOString() })
+        .eq("conversation_id", conversationId)
+        .eq("user_id", userId);
+    } catch (error: any) {
+      // Ignore 409 conflicts
+      if (error?.code !== '23505' && !error?.message?.includes('409')) {
+        console.error('[useMessageStatus] Error marking as read:', error);
+      }
+    }
   };
 
   // Fetch message statuses

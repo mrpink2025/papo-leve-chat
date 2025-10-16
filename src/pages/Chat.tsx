@@ -134,7 +134,7 @@ const Chat = () => {
     if (!id || !user?.id || !messages.length) return;
 
     const unreadMessages = messages.filter(
-      (msg: any) => msg.sender_id !== user.id
+      (msg: any) => msg.sender_id !== user.id && getMessageStatus(msg.id) !== "read"
     );
 
     if (unreadMessages.length > 0 && document.visibilityState === "visible") {
@@ -142,7 +142,7 @@ const Chat = () => {
         markAsRead(msg.id);
       });
     }
-  }, [messages, id, user?.id, markAsRead]);
+  }, [messages, id, user?.id, markAsRead, getMessageStatus]);
 
   if (!conversation) {
     return (

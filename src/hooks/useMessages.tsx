@@ -116,17 +116,24 @@ export const useMessages = (conversationId: string | undefined, userId: string |
             setTimeout(async () => {
               if (!userId) return;
               
-              await supabase
-                .from("message_status")
-                .upsert(
-                  {
-                    message_id: newMessage.id,
-                    user_id: userId,
-                    status: "delivered",
-                    timestamp: new Date().toISOString(),
-                  },
-                  { onConflict: "message_id,user_id" }
-                );
+              try {
+                await supabase
+                  .from("message_status")
+                  .upsert(
+                    {
+                      message_id: newMessage.id,
+                      user_id: userId,
+                      status: "delivered",
+                      timestamp: new Date().toISOString(),
+                    },
+                    { onConflict: "message_id,user_id" }
+                  );
+              } catch (error: any) {
+                // Ignore 409 conflicts - record already exists
+                if (error?.code !== '23505' && !error?.message?.includes('409')) {
+                  console.error('[useMessages] Error marking delivered:', error);
+                }
+              }
             }, 0);
           }
         }
