@@ -25,6 +25,14 @@ const SearchMessages = ({
     queryFn: async () => {
       if (!searchTerm || searchTerm.length < 2) return [];
 
+      // Sanitize search input to prevent SQL injection
+      const sanitizedTerm = searchTerm
+        .replace(/[%_]/g, '\\$&')
+        .trim()
+        .slice(0, 100); // Max 100 characters
+
+      if (!sanitizedTerm) return [];
+
       const { data, error } = await supabase
         .from("messages")
         .select(`
@@ -36,7 +44,7 @@ const SearchMessages = ({
         `)
         .eq("conversation_id", conversationId)
         .eq("deleted", false)
-        .ilike("content", `%${searchTerm}%`)
+        .ilike("content", `%${sanitizedTerm}%`)
         .order("created_at", { ascending: false })
         .limit(50);
 
