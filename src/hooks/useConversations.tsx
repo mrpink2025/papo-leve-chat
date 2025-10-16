@@ -91,13 +91,14 @@ export const useConversations = (userId: string | undefined, includeArchived = f
           if (!conversation) return null;
 
           // Get last message
-          const { data: lastMessage } = await supabase
+          const { data: lastMessages } = await supabase
             .from("messages")
             .select("content, created_at")
             .eq("conversation_id", conversation.id)
             .order("created_at", { ascending: false })
-            .limit(1)
-            .single();
+            .limit(1);
+
+          const lastMessage = lastMessages && lastMessages.length > 0 ? lastMessages[0] : null;
 
           // Get unread count
           const { count } = await supabase

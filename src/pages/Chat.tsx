@@ -76,26 +76,24 @@ const Chat = () => {
       if (data.type === "direct") {
         const { data: participants } = await supabase
           .from("conversation_participants")
-          .select(`
-            user_id,
-            profiles (
-              id,
-              username,
-              full_name,
-              avatar_url,
-              status,
-              last_seen
-            )
-          `)
+          .select("user_id")
           .eq("conversation_id", id)
           .neq("user_id", user?.id);
 
         if (participants && participants.length > 0) {
-          const participantData = participants[0] as any;
-          return {
-            ...data,
-            other_participant: participantData.profiles,
-          };
+          const otherUserId = participants[0].user_id;
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("id, username, full_name, avatar_url, status, last_seen, bio")
+            .eq("id", otherUserId)
+            .single();
+
+          if (profile) {
+            return {
+              ...data,
+              other_participant: profile,
+            };
+          }
         }
       }
 
