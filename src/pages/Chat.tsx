@@ -236,7 +236,7 @@ const Chat = () => {
           description: "Por favor, faça login novamente",
           variant: "destructive",
         });
-        navigate('/auth');
+        navigate('/entrar');
         return;
       }
       
@@ -303,14 +303,19 @@ const Chat = () => {
       // Criar nova conversa
       console.log('[Chat] Criando nova conversa direta com created_by:', currentUser.id);
       
-      const { data: newConv, error: convError } = await supabase
+      // Gerar ID da conversa no cliente para evitar SELECT após INSERT
+      const conversationId = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      console.log('[Chat] Novo conversationId:', conversationId);
+      
+      const { error: convError } = await supabase
         .from('conversations')
         .insert({
+          id: conversationId,
           type: 'direct',
           created_by: currentUser.id,
-        })
-        .select()
-        .single();
+        });
       
       if (convError) {
         console.error('[Chat] Erro ao criar conversa:', convError);
@@ -322,7 +327,7 @@ const Chat = () => {
             description: "Faça login novamente para criar conversas",
             variant: "destructive",
           });
-          navigate('/auth');
+          navigate('/entrar');
           return;
         }
         
@@ -333,14 +338,14 @@ const Chat = () => {
       const { error: partError } = await supabase
         .from('conversation_participants')
         .insert([
-          { conversation_id: newConv.id, user_id: currentUser.id },
-          { conversation_id: newConv.id, user_id: userId },
+          { conversation_id: conversationId, user_id: currentUser.id },
+          { conversation_id: conversationId, user_id: userId },
         ]);
       
       if (partError) throw partError;
       
       // Navegar para a nova conversa
-      navigate(`/chat/${newConv.id}`);
+      navigate(`/chat/${conversationId}`);
       toast({
         title: "Conversa iniciada",
         description: "Você pode começar a conversar agora",
