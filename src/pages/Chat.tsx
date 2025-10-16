@@ -78,7 +78,7 @@ const Chat = () => {
           .from("conversation_participants")
           .select(`
             user_id,
-            profiles!inner (
+            profiles (
               id,
               username,
               full_name,
