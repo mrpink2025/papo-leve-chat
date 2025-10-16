@@ -30,19 +30,23 @@ mkdir -p "${APP_DIR}/backups"
 
 # Função para logging
 log() {
+    mkdir -p "$(dirname "$INSTALL_LOG")" 2>/dev/null || true
     echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$INSTALL_LOG"
 }
 
 error() {
+    mkdir -p "$(dirname "$INSTALL_LOG")" 2>/dev/null || true
     echo -e "${RED}[ERROR]${NC} $1" | tee -a "$INSTALL_LOG"
     exit 1
 }
 
 warning() {
+    mkdir -p "$(dirname "$INSTALL_LOG")" 2>/dev/null || true
     echo -e "${YELLOW}[WARNING]${NC} $1" | tee -a "$INSTALL_LOG"
 }
 
 success() {
+    mkdir -p "$(dirname "$INSTALL_LOG")" 2>/dev/null || true
     echo -e "${GREEN}✅ $1${NC}" | tee -a "$INSTALL_LOG"
 }
 
@@ -137,16 +141,31 @@ if [ -d "${APP_DIR}/src" ]; then
         error "Falha ao atualizar repositório. Verifique conexão com GitHub."
     fi
 else
-    # Limpar diretório se existir mas estiver incompleto
-    if [ -d "$APP_DIR" ] && [ "$(ls -A $APP_DIR 2>/dev/null)" ]; then
-        warning "Diretório existe mas pode estar incompleto. Limpando..."
-        rm -rf "${APP_DIR:?}/"*
+    # Limpar diretório se existir mas estiver incompleto (preservando logs/backups)
+    if [ -d "$APP_DIR" ] && [ "$(ls -A "$APP_DIR" 2>/dev/null)" ]; then
+        warning "Diretório existe mas pode estar incompleto. Limpando (preservando logs/backups)..."
+        # Remover tudo, exceto logs e backups
+        find "$APP_DIR" -mindepth 1 -maxdepth 1 ! -name 'logs' ! -name 'backups' -exec rm -rf {} +
+        # Garantir que os diretórios críticos existam
+        mkdir -p "$LOG_DIR" "${APP_DIR}/backups"
     fi
     
-    log "Clonando de $REPO_URL..."
-    if ! git clone "$REPO_URL" "$APP_DIR" >> "$INSTALL_LOG" 2>&1; then
+    log "Clonando de $REPO_URL para diretório temporário..."
+    TMP_DIR="$(mktemp -d -p /tmp nossopapo_clone_XXXXXX)"
+    if ! git clone "$REPO_URL" "$TMP_DIR" >> "$INSTALL_LOG" 2>&1; then
+        rm -rf "$TMP_DIR"
         error "Falha ao clonar repositório de $REPO_URL. Verifique: 1) Conexão com internet 2) Acesso ao GitHub 3) URL do repositório"
     fi
+    
+    # Mover o conteúdo do clone para APP_DIR (preservando logs/backups)
+    shopt -s dotglob
+    if ! mv "$TMP_DIR"/* "$APP_DIR"/ >> "$INSTALL_LOG" 2>&1; then
+        shopt -u dotglob
+        rm -rf "$TMP_DIR"
+        error "Falha ao mover arquivos clonados para $APP_DIR"
+    fi
+    shopt -u dotglob
+    rm -rf "$TMP_DIR"
 fi
 
 cd "$APP_DIR" || error "Não foi possível acessar $APP_DIR"
