@@ -193,6 +193,22 @@ check_directory() {
     success "Diretório da aplicação verificado"
 }
 
+# Corrigir propriedade do repositório Git
+fix_git_ownership() {
+    step "Verificando configuração do Git..."
+    
+    cd "$APP_DIR"
+    
+    # Verificar se há erro de propriedade
+    if ! git status &>/dev/null; then
+        warning "Configurando repositório Git como diretório seguro..."
+        git config --global --add safe.directory "$APP_DIR"
+        success "Repositório Git configurado"
+    else
+        success "Repositório Git OK"
+    fi
+}
+
 # Criar diretórios necessários
 setup_directories() {
     mkdir -p "${BACKUP_DIR}"
@@ -203,7 +219,15 @@ setup_directories() {
 # Obter versão atual
 get_current_version() {
     cd "$APP_DIR"
-    git rev-parse --short HEAD
+    
+    # Tentar obter versão do Git
+    if git rev-parse --short HEAD 2>/dev/null; then
+        return 0
+    else
+        # Se falhar, retornar "unknown"
+        echo "unknown"
+        return 0
+    fi
 }
 
 # Criar backup
@@ -243,6 +267,12 @@ check_updates() {
     step "Verificando atualizações disponíveis..."
     
     cd "$APP_DIR"
+    
+    # Garantir que o repositório Git está configurado corretamente
+    if ! git status &>/dev/null; then
+        warning "Corrigindo configuração do Git..."
+        git config --global --add safe.directory "$APP_DIR"
+    fi
     
     git fetch origin 2>&1 | tee -a "${LOG_FILE}"
     
@@ -442,8 +472,15 @@ cleanup_backups() {
 rollback() {
     warning "Iniciando rollback..."
     
+    if [[ "$SKIP_BACKUP" == true ]]; then
+        error "Rollback impossível: backup foi pulado (--skip-backup)"
+    fi
+    
     if [[ ! -f "${BACKUP_FILE}" ]]; then
         error "Arquivo de backup não encontrado: ${BACKUP_FILE}"
+        warning "Verifique backups anteriores em: ${BACKUP_DIR}"
+        ls -lth "${BACKUP_DIR}" 2>/dev/null || true
+        exit 1
     fi
     
     cd "$APP_DIR"
@@ -498,6 +535,9 @@ check_root
 check_os
 check_directory
 setup_directories
+
+# Corrigir Git antes de qualquer operação
+fix_git_ownership
 
 # Obter versão atual
 OLD_VERSION=$(get_current_version)
