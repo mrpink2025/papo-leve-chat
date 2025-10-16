@@ -1,69 +1,82 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import ChatHeader from "@/components/ChatHeader";
 import MessageBubble from "@/components/MessageBubble";
 import MessageInput from "@/components/MessageInput";
+import { useAuth } from "@/hooks/useAuth";
+import { useMessages } from "@/hooks/useMessages";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
-interface Message {
+interface ConversationData {
   id: string;
-  content: string;
-  timestamp: Date;
-  isSent: boolean;
-  isRead?: boolean;
+  type: string;
+  name: string | null;
+  avatar_url: string | null;
+  other_participant?: {
+    id: string;
+    username: string;
+    full_name: string | null;
+    avatar_url: string | null;
+    status: string;
+    last_seen: string | null;
+  };
 }
-
-const mockChats: Record<string, { name: string; avatar: string; online: boolean; lastSeen?: string }> = {
-  "1": {
-    name: "Maria Silva",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maria",
-    online: true,
-  },
-  "2": {
-    name: "João Santos",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Joao",
-    online: false,
-    lastSeen: "visto por último hoje às 14:30",
-  },
-  "3": {
-    name: "Ana Costa",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ana",
-    online: true,
-  },
-};
 
 const Chat = () => {
   const { id } = useParams();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      content: "Olá! Como você está?",
-      timestamp: new Date(Date.now() - 3600000),
-      isSent: false,
-    },
-    {
-      id: "2",
-      content: "Oi! Estou bem, e você?",
-      timestamp: new Date(Date.now() - 3500000),
-      isSent: true,
-      isRead: true,
-    },
-    {
-      id: "3",
-      content: "Tudo ótimo por aqui! Vamos marcar aquele café?",
-      timestamp: new Date(Date.now() - 3400000),
-      isSent: false,
-    },
-    {
-      id: "4",
-      content: "Sim! Que tal amanhã às 15h?",
-      timestamp: new Date(Date.now() - 3300000),
-      isSent: true,
-      isRead: true,
-    },
-  ]);
-
+  const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chat = id && id in mockChats ? mockChats[id as keyof typeof mockChats] : null;
+
+  const { data: conversation } = useQuery<ConversationData>({
+    queryKey: ["conversation", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("conversations")
+        .select(`
+          id,
+          type,
+          name,
+          avatar_url
+        `)
+        .eq("id", id)
+        .single();
+
+      if (error) throw error;
+
+      // For direct conversations, get other participant
+      if (data.type === "direct") {
+        const { data: participants } = await supabase
+          .from("conversation_participants")
+          .select(`
+            user_id,
+            profiles!inner (
+              id,
+              username,
+              full_name,
+              avatar_url,
+              status,
+              last_seen
+            )
+          `)
+          .eq("conversation_id", id)
+          .neq("user_id", user?.id);
+
+        if (participants && participants.length > 0) {
+          const participantData = participants[0] as any;
+          return {
+            ...data,
+            other_participant: participantData.profiles,
+          };
+        }
+      }
+
+      return data;
+    },
+    enabled: !!id && !!user,
+  });
+
+  const { messages, sendMessage } = useMessages(id, user?.id);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -73,43 +86,50 @@ const Chat = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = (content: string) => {
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content,
-      timestamp: new Date(),
-      isSent: true,
-      isRead: false,
-    };
-    setMessages([...messages, newMessage]);
-  };
-
-  if (!chat) {
+  if (!conversation) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">Chat não encontrado</p>
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
+  const handleSendMessage = async (content: string) => {
+    try {
+      await sendMessage(content);
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  };
+
+  const isDirectChat = conversation.type === "direct";
+  const displayName = isDirectChat && conversation.other_participant
+    ? conversation.other_participant.full_name || conversation.other_participant.username || "Usuário"
+    : conversation.name || "Grupo";
+  const displayAvatar = isDirectChat && conversation.other_participant
+    ? conversation.other_participant.avatar_url || "/placeholder.svg"
+    : conversation.avatar_url || "/placeholder.svg";
+  const isOnline = isDirectChat && conversation.other_participant?.status === "online";
+  const lastSeen = isDirectChat && conversation.other_participant ? conversation.other_participant.last_seen : null;
+
   return (
     <div className="flex flex-col h-screen bg-background">
       <ChatHeader
-        name={chat.name}
-        avatar={chat.avatar}
-        online={chat.online}
-        lastSeen={chat.lastSeen}
+        name={displayName}
+        avatar={displayAvatar}
+        online={isOnline}
+        lastSeen={lastSeen}
       />
 
-      <div 
-        className="flex-1 overflow-y-auto p-4 space-y-2 bg-chat-background"
-        style={{
-          backgroundImage: `radial-gradient(circle at 20% 50%, hsl(var(--primary) / 0.03) 0%, transparent 50%),
-                           radial-gradient(circle at 80% 80%, hsl(var(--primary) / 0.02) 0%, transparent 50%)`,
-        }}
-      >
+      <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-chat-pattern">
         {messages.map((message) => (
-          <MessageBubble key={message.id} {...message} />
+          <MessageBubble
+            key={message.id}
+            content={message.content}
+            timestamp={new Date(message.created_at)}
+            isSent={message.sender_id === user?.id}
+            isRead={false}
+          />
         ))}
         <div ref={messagesEndRef} />
       </div>

@@ -7,7 +7,7 @@ interface ChatListItemProps {
   name: string;
   avatar?: string;
   lastMessage: string;
-  timestamp: Date;
+  timestamp: string;
   unread?: number;
   online?: boolean;
   onClick: () => void;
@@ -43,7 +43,7 @@ const ChatListItem = ({
         <div className="flex items-center justify-between mb-1">
           <h3 className="font-semibold text-foreground truncate">{name}</h3>
           <span className="text-[11px] text-muted-foreground">
-            {formatDistanceToNow(timestamp, { locale: ptBR, addSuffix: true })}
+            {timestamp}
           </span>
         </div>
         <div className="flex items-center justify-between gap-2">
