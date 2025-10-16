@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import ProfileViewDialog from "./ProfileViewDialog";
 
 interface ChatListItemProps {
   id: string;
@@ -11,6 +13,9 @@ interface ChatListItemProps {
   unread?: number;
   online?: boolean;
   onClick: () => void;
+  isGroup?: boolean;
+  memberCount?: number;
+  bio?: string;
 }
 
 const ChatListItem = ({
@@ -21,14 +26,24 @@ const ChatListItem = ({
   unread = 0,
   online = false,
   onClick,
+  isGroup = false,
+  memberCount,
+  bio,
 }: ChatListItemProps) => {
+  const [showProfileView, setShowProfileView] = useState(false);
   return (
     <div
       onClick={onClick}
       className="flex items-center gap-3 p-4 hover:bg-secondary/50 cursor-pointer transition-all border-b border-border/50 animate-fade-in active:bg-secondary"
     >
       <div className="relative">
-        <Avatar className="h-12 w-12 ring-1 ring-border/50">
+        <Avatar 
+          className="h-12 w-12 ring-1 ring-border/50 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowProfileView(true);
+          }}
+        >
           <AvatarImage src={avatar} alt={name} />
           <AvatarFallback className="bg-primary/20 text-foreground font-medium">
             {name.substring(0, 2).toUpperCase()}
@@ -55,6 +70,16 @@ const ChatListItem = ({
           )}
         </div>
       </div>
+
+      <ProfileViewDialog
+        open={showProfileView}
+        onClose={() => setShowProfileView(false)}
+        name={name}
+        avatarUrl={avatar}
+        bio={bio}
+        isGroup={isGroup}
+        memberCount={memberCount}
+      />
     </div>
   );
 };

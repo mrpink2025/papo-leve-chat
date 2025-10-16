@@ -125,6 +125,9 @@ const Index = () => {
                     unread={conversation.unread_count || 0}
                     online={isOnline}
                     onClick={() => navigate(`/chat/${conversation.id}`)}
+                    isGroup={!isDirectChat}
+                    memberCount={!isDirectChat ? conversation.member_count : undefined}
+                    bio={isDirectChat ? conversation.other_participant?.bio : undefined}
                   />
                 );
                   })

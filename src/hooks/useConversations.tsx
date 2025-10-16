@@ -13,12 +13,14 @@ export interface Conversation {
     created_at: string;
   };
   unread_count?: number;
+  member_count?: number;
   other_participant?: {
     id: string;
     username: string;
     full_name: string | null;
     avatar_url: string | null;
     status: string;
+    bio?: string | null;
   };
 }
 
@@ -71,7 +73,7 @@ export const useConversations = (userId: string | undefined, includeArchived = f
 
       const { data: otherProfiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, username, full_name, avatar_url, status")
+        .select("id, username, full_name, avatar_url, status, bio")
         .in("id", otherUserIds);
 
       if (profilesError) throw profilesError;
@@ -106,11 +108,20 @@ export const useConversations = (userId: string | undefined, includeArchived = f
 
           // For direct conversations, get other participant
           let otherParticipant = null;
+          let memberCount = undefined;
+          
           if (conversation.type === "direct") {
             const otherUserId = convIdToOtherUserId.get(conversation.id);
             if (otherUserId) {
               otherParticipant = profileById.get(otherUserId) || null;
             }
+          } else if (conversation.type === "group") {
+            // Count members in group
+            const { count: groupMemberCount } = await supabase
+              .from("conversation_participants")
+              .select("*", { count: "exact", head: true })
+              .eq("conversation_id", conversation.id);
+            memberCount = groupMemberCount || 0;
           }
 
           return {
@@ -118,6 +129,7 @@ export const useConversations = (userId: string | undefined, includeArchived = f
             archived: p.archived,
             last_message: lastMessage,
             unread_count: count || 0,
+            member_count: memberCount,
             other_participant: otherParticipant,
           };
         })
