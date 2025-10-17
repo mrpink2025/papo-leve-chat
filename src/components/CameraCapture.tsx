@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { useCamera } from "@/hooks/useCamera";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, SwitchCamera, Camera, Video, Circle, Square, Send } from "lucide-react";
+import { X, SwitchCamera, Camera, Video, Circle, Square, Send, Edit2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ImageEditor from "./ImageEditor";
+import VideoEditor from "./VideoEditor";
 
 interface CameraCaptureProps {
   onCapture: (blob: Blob, type: "image" | "video", caption?: string) => void;
@@ -33,6 +35,8 @@ const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
     type: "image" | "video";
   } | null>(null);
   const [caption, setCaption] = useState("");
+  const [showImageEditor, setShowImageEditor] = useState(false);
+  const [showVideoEditor, setShowVideoEditor] = useState(false);
 
   useEffect(() => {
     startCamera();
@@ -80,7 +84,41 @@ const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
       URL.revokeObjectURL(preview.url);
       setPreview(null);
       setCaption("");
+      setShowImageEditor(false);
+      setShowVideoEditor(false);
     }
+  };
+
+  const handleEditImage = () => {
+    setShowImageEditor(true);
+  };
+
+  const handleEditVideo = () => {
+    setShowVideoEditor(true);
+  };
+
+  const handleImageEdited = (blob: Blob) => {
+    if (preview) {
+      URL.revokeObjectURL(preview.url);
+    }
+    setPreview({
+      blob,
+      url: URL.createObjectURL(blob),
+      type: "image",
+    });
+    setShowImageEditor(false);
+  };
+
+  const handleVideoEdited = (blob: Blob) => {
+    if (preview) {
+      URL.revokeObjectURL(preview.url);
+    }
+    setPreview({
+      blob,
+      url: URL.createObjectURL(blob),
+      type: "video",
+    });
+    setShowVideoEditor(false);
   };
 
   const formatDuration = (seconds: number) => {
@@ -99,6 +137,28 @@ const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
         </p>
         <Button onClick={onClose}>Voltar</Button>
       </div>
+    );
+  }
+
+  // Image editor mode
+  if (showImageEditor && preview?.type === "image") {
+    return (
+      <ImageEditor
+        imageUrl={preview.url}
+        onSave={handleImageEdited}
+        onCancel={() => setShowImageEditor(false)}
+      />
+    );
+  }
+
+  // Video editor mode
+  if (showVideoEditor && preview?.type === "video") {
+    return (
+      <VideoEditor
+        videoUrl={preview.url}
+        onSave={handleVideoEdited}
+        onCancel={() => setShowVideoEditor(false)}
+      />
     );
   }
 
@@ -157,6 +217,15 @@ const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
             >
               <X size={18} className="mr-2" />
               Refazer
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={preview.type === "image" ? handleEditImage : handleEditVideo}
+              className="flex-1"
+            >
+              <Edit2 size={18} className="mr-2" />
+              Editar
             </Button>
 
             <Button
