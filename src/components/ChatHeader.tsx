@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Phone, Video, Search, MoreVertical, Settings2 } from "lucide-react";
+import { ArrowLeft, Phone, Video, Search, MoreVertical, Settings2, Image, Archive, Bell, BellOff, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import GroupSettingsDialog from "./GroupSettingsDialog";
 import ProfileViewDialog from "./ProfileViewDialog";
+import { ChatMediaGallery } from "./ChatMediaGallery";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
 interface ChatHeaderProps {
@@ -44,6 +46,7 @@ const ChatHeader = ({
   const navigate = useNavigate();
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [showProfileView, setShowProfileView] = useState(false);
+  const [showMediaGallery, setShowMediaGallery] = useState(false);
 
   // Buscar informações adicionais quando o dialog for aberto
   const { data: profileInfo } = useQuery({
@@ -183,6 +186,14 @@ const ChatHeader = ({
               <span>Pesquisar</span>
             </DropdownMenuItem>
 
+            <DropdownMenuItem 
+              onClick={() => setShowMediaGallery(true)}
+              className="cursor-pointer"
+            >
+              <Image size={18} className="mr-2" />
+              <span>Mídias, links e docs</span>
+            </DropdownMenuItem>
+
             {isGroup && (
               <DropdownMenuItem 
                 onClick={() => setShowGroupSettings(true)}
@@ -192,6 +203,25 @@ const ChatHeader = ({
                 <span>Configurações do grupo</span>
               </DropdownMenuItem>
             )}
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem className="cursor-pointer">
+              <BellOff size={18} className="mr-2" />
+              <span>Silenciar</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem className="cursor-pointer">
+              <Archive size={18} className="mr-2" />
+              <span>Arquivar conversa</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem className="cursor-pointer text-destructive">
+              <Trash2 size={18} className="mr-2" />
+              <span>Limpar conversa</span>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -213,6 +243,14 @@ const ChatHeader = ({
         isGroup={isGroup}
         memberCount={profileInfo?.memberCount}
       />
+
+      {conversationId && (
+        <ChatMediaGallery
+          conversationId={conversationId}
+          open={showMediaGallery}
+          onClose={() => setShowMediaGallery(false)}
+        />
+      )}
     </header>
   );
 };
