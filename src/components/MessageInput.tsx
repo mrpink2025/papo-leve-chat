@@ -5,10 +5,12 @@ import { Send, Smile, Image as ImageIcon, Mic, File as FileIcon, Video, Loader2,
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
+import { useToast } from "@/hooks/use-toast";
 import ReplyPreview from "./ReplyPreview";
 import VoiceRecorder from "./VoiceRecorder";
 import VideoRecorder from "./VideoRecorder";
 import CameraCapture from "./CameraCapture";
+import UploadProgress from "./UploadProgress";
 import {
   Popover,
   PopoverContent,
@@ -38,11 +40,13 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
   const [showRecorder, setShowRecorder] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [currentUploadFile, setCurrentUploadFile] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
-  const { uploadFile, uploading } = useFileUpload();
-  const { isOnline } = useOfflineQueue();
+  const { uploadFile, uploading, uploadState } = useFileUpload();
+  const { isOnline, addToQueue } = useOfflineQueue();
+  const { toast } = useToast();
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
 
   const handleSend = () => {
@@ -70,14 +74,39 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
     const file = e.target.files?.[0];
     if (!file || !conversationId) return;
 
-    const url = await uploadFile({ file, conversationId, type });
+    setCurrentUploadFile(file.name);
+
+    const url = await uploadFile({ 
+      file, 
+      conversationId, 
+      type,
+      onProgress: (progress) => {
+        // Progress is tracked in uploadState
+      }
+    });
+
     if (url) {
       onSendMessage(
         type === "image" ? "Imagem" : type === "video" ? "Vídeo" : "Documento",
         type,
         { url, filename: file.name }
       );
+    } else if (!isOnline) {
+      // Add to offline queue if upload failed due to network
+      const messageId = addToQueue({
+        conversationId,
+        content: type === "image" ? "Imagem" : type === "video" ? "Vídeo" : "Documento",
+        type,
+        metadata: { filename: file.name, pendingUpload: true },
+      });
+      
+      toast({
+        title: "Sem conexão",
+        description: "A mensagem será enviada quando a conexão for restaurada",
+      });
     }
+
+    setCurrentUploadFile(null);
 
     // Reset input
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -126,10 +155,15 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
       { type: type === "image" ? "image/jpeg" : "video/webm" }
     );
 
+    setCurrentUploadFile(file.name);
+
     const url = await uploadFile({ 
       file, 
       conversationId, 
-      type: type === "image" ? "image" : "video" 
+      type: type === "image" ? "image" : "video",
+      onProgress: (progress) => {
+        // Progress is tracked in uploadState
+      }
     });
     
     if (url) {
@@ -138,7 +172,21 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
         type,
         { url, filename: file.name, caption }
       );
+    } else if (!isOnline) {
+      const messageId = addToQueue({
+        conversationId,
+        content: caption || (type === "image" ? "Foto" : "Vídeo"),
+        type,
+        metadata: { filename: file.name, caption, pendingUpload: true },
+      });
+      
+      toast({
+        title: "Sem conexão",
+        description: "A mídia será enviada quando a conexão for restaurada",
+      });
     }
+
+    setCurrentUploadFile(null);
     setShowCamera(false);
   };
 
@@ -174,18 +222,19 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
   }
 
   return (
-    <div className="border-t border-border bg-card">
-      {replyTo && onCancelReply && (
-        <div className="px-4 pt-3">
-          <ReplyPreview
-            content={replyTo.content}
-            senderName={replyTo.senderName}
-            onCancel={onCancelReply}
-          />
-        </div>
-      )}
-      
-      <div className="flex items-end gap-2 p-4">
+    <>
+      <div className="border-t border-border bg-card">
+        {replyTo && onCancelReply && (
+          <div className="px-4 pt-3">
+            <ReplyPreview
+              content={replyTo.content}
+              senderName={replyTo.senderName}
+              onCancel={onCancelReply}
+            />
+          </div>
+        )}
+        
+        <div className="flex items-end gap-2 p-4">
         {/* Hidden file inputs */}
         <input
           ref={fileInputRef}
@@ -343,6 +392,18 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
         )}
       </div>
     </div>
+
+    {/* Upload progress indicator */}
+    {uploadState.isUploading && currentUploadFile && (
+      <UploadProgress
+        progress={uploadState.progress}
+        fileName={currentUploadFile}
+        isUploading={uploadState.isUploading}
+        error={uploadState.error}
+        onCancel={() => setCurrentUploadFile(null)}
+      />
+    )}
+  </>
   );
 };
 
