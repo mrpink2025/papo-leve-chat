@@ -30,6 +30,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { isSameDay } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { useThemeMode } from "@/hooks/useThemeMode";
+import backgroundLight from "@/assets/background_light_nossopapo.webp";
+import backgroundDark from "@/assets/background_dark_nossopapo.webp";
 
 interface ConversationData {
   id: string;
@@ -51,6 +54,7 @@ const Chat = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { effectiveTheme } = useThemeMode();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const virtuosoRef = useRef<any>(null);
   const processedMessagesRef = useRef<Set<string>>(new Set());
@@ -732,8 +736,14 @@ const Chat = () => {
         initialTopMostItemIndex={messages.length > 0 ? messages.length - 1 : 0}
         followOutput="smooth"
         alignToBottom
-        className="flex-1 bg-chat-pattern"
-        style={{ height: '100%' }}
+        className="flex-1"
+        style={{ 
+          height: '100%',
+          backgroundImage: `url(${effectiveTheme === 'light' ? backgroundLight : backgroundDark})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundAttachment: 'fixed'
+        }}
         components={{
           Header: () => (
             hasNextPage ? (
