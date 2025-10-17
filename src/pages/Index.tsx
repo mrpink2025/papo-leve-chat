@@ -91,43 +91,40 @@ const Index = () => {
               size="icon"
               onClick={handleInstall}
               title="Instalar App"
-              className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all hover:scale-110 relative group"
+              className="h-9 w-9 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50 hover:border-primary/30 transition-all hover:scale-105 hover:shadow-lg hover:shadow-primary/10"
             >
-              <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 rounded-md transition-all" />
-              <Download className="h-5 w-5 relative z-10" />
+              <Download className="h-4 w-4" />
             </Button>
           )}
           <Button
-            variant="ghost"
-            size="icon"
+            variant="outline"
+            size="sm"
             onClick={() => navigate("/app/contatos")}
             title="Contatos"
-            className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all hover:scale-110 relative group"
+            className="h-9 px-3 rounded-xl bg-background/50 hover:bg-primary/10 border-border/50 hover:border-primary/50 text-foreground hover:text-primary transition-all hover:scale-105 hover:shadow-md flex items-center gap-2"
           >
-            <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 rounded-md transition-all" />
-            <Users className="h-5 w-5 relative z-10" />
+            <Users className="h-4 w-4" />
+            <span className="text-sm font-medium">Contatos</span>
           </Button>
           <ThemeToggle />
           <CreateGroupDialog />
           <Button 
-            variant="ghost" 
-            size="icon" 
+            variant="ghost"
+            size="icon"
             onClick={() => navigate("/app/configuracoes")} 
             title="Configurações"
-            className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all hover:scale-110 relative group"
+            className="h-9 w-9 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50 hover:border-primary/30 transition-all hover:scale-105 hover:shadow-lg hover:shadow-primary/10"
           >
-            <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 rounded-md transition-all" />
-            <Settings className="h-5 w-5 relative z-10" />
+            <Settings className="h-4 w-4" />
           </Button>
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={signOut} 
             title="Sair"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10 transition-all hover:scale-110 relative group"
+            className="h-9 w-9 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive hover:text-destructive border border-destructive/20 hover:border-destructive/40 transition-all hover:scale-105 hover:shadow-lg hover:shadow-destructive/10"
           >
-            <div className="absolute inset-0 bg-destructive/0 group-hover:bg-destructive/10 rounded-md transition-all" />
-            <LogOut className="h-5 w-5 relative z-10" />
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </div>

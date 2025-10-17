@@ -209,8 +209,13 @@ export const CreateGroupDialog = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <Users className="h-5 w-5" />
+        <Button 
+          variant="default"
+          size="sm"
+          className="h-9 px-3 rounded-xl bg-primary hover:bg-primary-glow text-primary-foreground border-none shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all hover:scale-105 flex items-center gap-2"
+        >
+          <Users className="h-4 w-4" />
+          <span className="text-sm font-medium">Novo Grupo</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
