@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { ChevronLeft, ChevronRight, X, Volume2, VolumeX, MoreVertical, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStories } from '@/hooks/useStories';
@@ -198,6 +199,13 @@ export const EnhancedStoryViewer = ({ storyGroups, initialIndex, onClose }: Enha
         onTouchStart={handleSwipeStart}
         onTouchEnd={handleSwipeEnd}
       >
+        <VisuallyHidden>
+          <DialogTitle>Visualizando Story</DialogTitle>
+          <DialogDescription>
+            Story de {profile?.full_name || profile?.username}
+          </DialogDescription>
+        </VisuallyHidden>
+        
         <div className="relative h-full flex flex-col">
           {/* Progress bars */}
           <div className="absolute top-0 left-0 right-0 z-20 flex gap-1 p-2">
