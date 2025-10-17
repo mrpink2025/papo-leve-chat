@@ -212,10 +212,10 @@ export const CreateGroupDialog = () => {
         <Button 
           variant="default"
           size="sm"
-          className="h-9 px-3 rounded-xl bg-primary hover:bg-primary-glow text-primary-foreground border-none shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all hover:scale-105 flex items-center gap-2"
+          className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg sm:rounded-xl bg-primary hover:bg-primary-glow text-primary-foreground border-none shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all hover:scale-105 flex items-center gap-1.5"
         >
-          <Users className="h-4 w-4" />
-          <span className="text-sm font-medium">Novo Grupo</span>
+          <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          <span className="text-xs sm:text-sm font-medium hidden sm:inline">Novo Grupo</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">

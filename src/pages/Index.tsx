@@ -70,30 +70,30 @@ const Index = () => {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <div className="relative bg-gradient-to-r from-card via-card to-accent/5 border-b-2 border-primary/20 px-6 py-4 flex items-center justify-between shadow-lg backdrop-blur-sm">
+      <div className="relative bg-gradient-to-r from-card via-card to-accent/5 border-b-2 border-primary/20 px-3 py-2 sm:px-6 sm:py-4 flex items-center justify-between shadow-lg backdrop-blur-sm">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
-        <div className="flex items-center gap-3 relative z-10">
+        <div className="flex items-center gap-2 sm:gap-3 relative z-10">
           <div className="relative group">
             <div className="absolute inset-0 bg-primary/20 rounded-full blur-md group-hover:blur-lg transition-all" />
-            <img src={logo} alt="Nosso Papo" className="h-11 w-11 object-contain relative z-10 drop-shadow-lg hover:scale-105 transition-transform" />
+            <img src={logo} alt="Nosso Papo" className="h-7 w-7 sm:h-9 sm:w-9 md:h-11 md:w-11 object-contain relative z-10 drop-shadow-lg hover:scale-105 transition-transform" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent tracking-tight">
+            <h1 className="text-base sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent tracking-tight">
               Nosso Papo
             </h1>
-            <p className="text-xs text-muted-foreground">Conecte-se com seus amigos</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">Conecte-se com seus amigos</p>
           </div>
         </div>
-        <div className="flex gap-2 relative z-10">
+        <div className="flex gap-1 sm:gap-2 relative z-10">
           {canInstall && (
             <Button
               variant="ghost"
               size="icon"
               onClick={handleInstall}
               title="Instalar App"
-              className="h-9 w-9 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50 hover:border-primary/30 transition-all hover:scale-105 hover:shadow-lg hover:shadow-primary/10"
+              className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50 hover:border-primary/30 transition-all hover:scale-105 hover:shadow-lg hover:shadow-primary/10"
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
           )}
           <Button
@@ -101,10 +101,10 @@ const Index = () => {
             size="sm"
             onClick={() => navigate("/app/contatos")}
             title="Contatos"
-            className="h-9 px-3 rounded-xl bg-background/50 hover:bg-primary/10 border-border/50 hover:border-primary/50 text-foreground hover:text-primary transition-all hover:scale-105 hover:shadow-md flex items-center gap-2"
+            className="h-8 sm:h-9 px-2 sm:px-3 rounded-lg sm:rounded-xl bg-background/50 hover:bg-primary/10 border-border/50 hover:border-primary/50 text-foreground hover:text-primary transition-all hover:scale-105 hover:shadow-md flex items-center gap-1.5"
           >
-            <Users className="h-4 w-4" />
-            <span className="text-sm font-medium">Contatos</span>
+            <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="text-xs sm:text-sm font-medium hidden sm:inline">Contatos</span>
           </Button>
           <ThemeToggle />
           <CreateGroupDialog />
@@ -113,30 +113,30 @@ const Index = () => {
             size="icon"
             onClick={() => navigate("/app/configuracoes")} 
             title="Configurações"
-            className="h-9 w-9 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50 hover:border-primary/30 transition-all hover:scale-105 hover:shadow-lg hover:shadow-primary/10"
+            className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50 hover:border-primary/30 transition-all hover:scale-105 hover:shadow-lg hover:shadow-primary/10 hidden sm:flex"
           >
-            <Settings className="h-4 w-4" />
+            <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Button>
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={signOut} 
             title="Sair"
-            className="h-9 w-9 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive hover:text-destructive border border-destructive/20 hover:border-destructive/40 transition-all hover:scale-105 hover:shadow-lg hover:shadow-destructive/10"
+            className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive hover:text-destructive border border-destructive/20 hover:border-destructive/40 transition-all hover:scale-105 hover:shadow-lg hover:shadow-destructive/10 hidden sm:flex"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="p-4 bg-card border-b border-border">
+      <div className="px-3 py-2 sm:p-4 bg-card border-b border-border">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
+          <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={16} />
           <Input
             placeholder="Buscar conversa..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-secondary"
+            className="pl-8 sm:pl-10 bg-secondary text-sm h-9 sm:h-10"
           />
         </div>
       </div>
