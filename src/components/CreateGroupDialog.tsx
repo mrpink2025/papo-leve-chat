@@ -27,8 +27,8 @@ export const CreateGroupDialog = () => {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
 
-  const { data: contacts = [] } = useQuery({
-    queryKey: ["contacts", user?.id],
+  const { data: contacts = [], isLoading } = useQuery({
+    queryKey: ["contacts-for-group", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
       
@@ -49,9 +49,11 @@ export const CreateGroupDialog = () => {
         .in("id", contactIds);
 
       if (profilesError) throw profilesError;
-      return profiles || [];
+      
+      // Filter only valid profiles
+      return (profiles || []).filter(p => p && p.id && p.username);
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && open,
   });
 
   const handleCreateGroup = async () => {
@@ -236,31 +238,37 @@ export const CreateGroupDialog = () => {
           <div className="space-y-2">
             <Label>Adicionar participantes</Label>
             <ScrollArea className="h-[300px] border rounded-md">
-              {contacts.length === 0 ? (
+              {isLoading ? (
+                <div className="p-4 text-center text-muted-foreground">
+                  Carregando contatos...
+                </div>
+              ) : contacts.length === 0 ? (
                 <div className="p-4 text-center text-muted-foreground">
                   Nenhum contato encontrado
                 </div>
               ) : (
                 <div className="p-2 space-y-2">
-                  {contacts.map((contact: any) => (
-                    <div
-                      key={contact.id}
-                      className="flex items-center gap-3 p-2 hover:bg-secondary rounded-lg cursor-pointer"
-                      onClick={() => toggleUser(contact.id)}
-                    >
-                      <Checkbox checked={selectedUsers.includes(contact.id)} />
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={contact.avatar_url || ""} />
-                        <AvatarFallback>
-                          {contact.username?.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="font-medium">{contact.full_name || contact.username}</p>
-                        <p className="text-sm text-muted-foreground">@{contact.username}</p>
+                  {contacts
+                    .filter(contact => contact?.id && contact?.username)
+                    .map((contact: any) => (
+                      <div
+                        key={contact.id}
+                        className="flex items-center gap-3 p-2 hover:bg-secondary rounded-lg cursor-pointer"
+                        onClick={() => toggleUser(contact.id)}
+                      >
+                        <Checkbox checked={selectedUsers.includes(contact.id)} />
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={contact.avatar_url || ""} />
+                          <AvatarFallback>
+                            {contact.username?.substring(0, 2).toUpperCase() || "??"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="font-medium">{contact.full_name || contact.username || "Sem nome"}</p>
+                          <p className="text-sm text-muted-foreground">@{contact.username || "unknown"}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               )}
             </ScrollArea>
