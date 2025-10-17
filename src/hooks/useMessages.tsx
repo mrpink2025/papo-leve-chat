@@ -46,6 +46,21 @@ export const useMessages = (conversationId: string | undefined, userId: string |
         .order("created_at", { ascending: false })
         .range(start, end);
 
+      // Debug: Log query results
+      console.log('[useMessages] Query result:', { 
+        conversationId, 
+        page,
+        count: data?.length, 
+        error,
+        userId,
+        messages: data?.map(m => ({ 
+          id: m.id.substring(0, 8), 
+          sender: m.sender_id.substring(0, 8), 
+          created_at: m.created_at,
+          isMine: m.sender_id === userId
+        }))
+      });
+
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
