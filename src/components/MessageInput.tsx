@@ -117,7 +117,7 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
     setShowVideoRecorder(false);
   };
 
-  const handleCameraCapture = async (blob: Blob, type: "image" | "video") => {
+  const handleCameraCapture = async (blob: Blob, type: "image" | "video", caption?: string) => {
     if (!conversationId) return;
 
     const file = new File(
@@ -134,9 +134,9 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
     
     if (url) {
       onSendMessage(
-        type === "image" ? "Foto" : "Vídeo",
+        caption || (type === "image" ? "Foto" : "Vídeo"),
         type,
-        { url, filename: file.name }
+        { url, filename: file.name, caption }
       );
     }
     setShowCamera(false);

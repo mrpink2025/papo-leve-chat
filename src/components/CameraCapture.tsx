@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useCamera } from "@/hooks/useCamera";
 import { Button } from "@/components/ui/button";
-import { X, SwitchCamera, Camera, Video, Circle, Square } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { X, SwitchCamera, Camera, Video, Circle, Square, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CameraCaptureProps {
-  onCapture: (blob: Blob, type: "image" | "video") => void;
+  onCapture: (blob: Blob, type: "image" | "video", caption?: string) => void;
   onClose: () => void;
 }
 
@@ -31,6 +32,7 @@ const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
     url: string;
     type: "image" | "video";
   } | null>(null);
+  const [caption, setCaption] = useState("");
 
   useEffect(() => {
     startCamera();
@@ -67,7 +69,7 @@ const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
 
   const handleSend = () => {
     if (preview) {
-      onCapture(preview.blob, preview.type);
+      onCapture(preview.blob, preview.type, caption.trim() || undefined);
       stopCamera();
       onClose();
     }
@@ -77,6 +79,7 @@ const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
     if (preview) {
       URL.revokeObjectURL(preview.url);
       setPreview(null);
+      setCaption("");
     }
   };
 
@@ -104,7 +107,7 @@ const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
     return (
       <div className="fixed inset-0 z-50 bg-black flex flex-col">
         {/* Preview */}
-        <div className="flex-1 relative flex items-center justify-center">
+        <div className="flex-1 relative flex items-center justify-center overflow-hidden">
           {preview.type === "image" ? (
             <img
               src={preview.url}
@@ -120,28 +123,50 @@ const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
               className="max-w-full max-h-full object-contain"
             />
           )}
+
+          {/* Caption overlay */}
+          {caption && (
+            <div className="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-sm rounded-lg p-3">
+              <p className="text-white text-sm">{caption}</p>
+            </div>
+          )}
         </div>
 
-        {/* Controls */}
-        <div className="p-6 bg-black/80 backdrop-blur-sm flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleRetake}
-            className="text-white hover:bg-white/10"
-          >
-            <X size={24} />
-          </Button>
+        {/* Caption input and controls */}
+        <div className="bg-card border-t border-border">
+          <div className="p-4">
+            <Textarea
+              value={caption}
+              onChange={(e) => setCaption(e.target.value.slice(0, 500))}
+              placeholder="Adicionar legenda... (opcional)"
+              className="bg-secondary border-0 focus-visible:ring-1 focus-visible:ring-primary min-h-[60px] max-h-[120px] resize-none"
+              rows={2}
+            />
+            <div className="flex justify-end mt-1">
+              <span className="text-xs text-muted-foreground">
+                {caption.length}/500
+              </span>
+            </div>
+          </div>
 
-          <Button
-            size="lg"
-            onClick={handleSend}
-            className="bg-primary hover:bg-primary/90"
-          >
-            Enviar
-          </Button>
+          <div className="px-4 pb-4 flex items-center justify-between gap-4">
+            <Button
+              variant="outline"
+              onClick={handleRetake}
+              className="flex-1"
+            >
+              <X size={18} className="mr-2" />
+              Refazer
+            </Button>
 
-          <div className="w-10" /> {/* Spacer */}
+            <Button
+              onClick={handleSend}
+              className="flex-1 bg-primary hover:bg-primary/90"
+            >
+              <Send size={18} className="mr-2" />
+              Enviar
+            </Button>
+          </div>
         </div>
       </div>
     );
