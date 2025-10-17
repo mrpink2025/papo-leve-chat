@@ -27,7 +27,8 @@ export const useAuth = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // navigate é estável e não precisa ser uma dependência
 
   const signOut = async () => {
     await supabase.auth.signOut();

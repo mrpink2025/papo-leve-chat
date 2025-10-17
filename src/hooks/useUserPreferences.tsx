@@ -36,6 +36,7 @@ export const useUserPreferences = () => {
       return data;
     },
     enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000, // 5 minutos - evita refetches desnecessários
   });
 
   const updatePreferences = useMutation({
