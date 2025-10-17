@@ -31,8 +31,10 @@ import { useToast } from "@/hooks/use-toast";
 import { isSameDay } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useThemeMode } from "@/hooks/useThemeMode";
-import backgroundLight from "@/assets/background_light_nossopapo.webp";
-import backgroundDark from "@/assets/background_dark_nossopapo.webp";
+import backgroundLightWeb from "@/assets/background_light_nossopapo_web.webp";
+import backgroundDarkWeb from "@/assets/background_dark_nossopapo_web.webp";
+import backgroundLightMobile from "@/assets/background_light_nossopapo_mobile.webp";
+import backgroundDarkMobile from "@/assets/background_dark_nossopapo_mobile.webp";
 
 interface ConversationData {
   id: string;
@@ -55,6 +57,7 @@ const Chat = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { effectiveTheme } = useThemeMode();
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const virtuosoRef = useRef<any>(null);
   const processedMessagesRef = useRef<Set<string>>(new Set());
@@ -68,8 +71,26 @@ const Chat = () => {
     bio?: string;
   } | null>(null);
   
+  // Detectar mudanças no tamanho da tela
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   // Sincronização real-time centralizada
   useRealtimeSync(user?.id);
+  
+  // Selecionar fundo baseado no tema e tamanho da tela
+  const getBackgroundImage = () => {
+    if (effectiveTheme === 'light') {
+      return isMobile ? backgroundLightMobile : backgroundLightWeb;
+    }
+    return isMobile ? backgroundDarkMobile : backgroundDarkWeb;
+  };
 
   // Query para chamada em grupo ativa
   const { data: activeGroupCall } = useQuery({
@@ -739,7 +760,7 @@ const Chat = () => {
         className="flex-1"
         style={{ 
           height: '100%',
-          backgroundImage: `url(${effectiveTheme === 'light' ? backgroundLight : backgroundDark})`,
+          backgroundImage: `url(${getBackgroundImage()})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundAttachment: 'fixed'
