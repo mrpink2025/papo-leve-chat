@@ -8,6 +8,7 @@ import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 import ReplyPreview from "./ReplyPreview";
 import VoiceRecorder from "./VoiceRecorder";
 import VideoRecorder from "./VideoRecorder";
+import CameraCapture from "./CameraCapture";
 import {
   Popover,
   PopoverContent,
@@ -36,6 +37,7 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showRecorder, setShowRecorder] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
@@ -115,6 +117,31 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
     setShowVideoRecorder(false);
   };
 
+  const handleCameraCapture = async (blob: Blob, type: "image" | "video") => {
+    if (!conversationId) return;
+
+    const file = new File(
+      [blob],
+      `camera_${type}_${Date.now()}.${type === "image" ? "jpg" : "webm"}`,
+      { type: type === "image" ? "image/jpeg" : "video/webm" }
+    );
+
+    const url = await uploadFile({ 
+      file, 
+      conversationId, 
+      type: type === "image" ? "image" : "video" 
+    });
+    
+    if (url) {
+      onSendMessage(
+        type === "image" ? "Foto" : "Vídeo",
+        type,
+        { url, filename: file.name }
+      );
+    }
+    setShowCamera(false);
+  };
+
   const handleMessageChange = (value: string) => {
     setMessage(value);
 
@@ -140,6 +167,10 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
 
   if (showVideoRecorder) {
     return <VideoRecorder onSend={handleVideoSend} onCancel={() => setShowVideoRecorder(false)} />;
+  }
+
+  if (showCamera) {
+    return <CameraCapture onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />;
   }
 
   return (
@@ -218,13 +249,23 @@ const MessageInput = ({ onSendMessage, conversationId, onTyping, replyTo, onCanc
             className="w-48 bg-card shadow-lg"
           >
             <DropdownMenuItem
+              onClick={() => setShowCamera(true)}
+              className="flex items-center gap-3 py-3 cursor-pointer hover:bg-accent"
+            >
+              <div className="w-10 h-10 rounded-full bg-pink-500/10 flex items-center justify-center">
+                <Camera size={20} className="text-pink-500" />
+              </div>
+              <span className="font-medium">Câmera</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-3 py-3 cursor-pointer hover:bg-accent"
             >
               <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
                 <ImageIcon size={20} className="text-blue-500" />
               </div>
-              <span className="font-medium">Imagem</span>
+              <span className="font-medium">Galeria</span>
             </DropdownMenuItem>
             
             <DropdownMenuSub>
