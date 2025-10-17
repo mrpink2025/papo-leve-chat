@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Settings, Archive, LogOut, Download, Users, Filter } from "lucide-react";
+import { Search, Settings, Archive, LogOut, Download, Users, Filter, Phone } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ChatListItem from "@/components/ChatListItem";
 import { SwipeableConversation } from "@/components/SwipeableConversation";
 import { SelectionActionBar } from "@/components/SelectionActionBar";
@@ -27,6 +28,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversations";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
+import { useCallHistory } from "@/hooks/useCallHistory";
+import { useNativeVideoCall } from "@/hooks/useNativeVideoCall";
+import { MissedCallsList } from "@/components/MissedCallsList";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -59,6 +63,8 @@ const Index = () => {
   const { data: conversations = [], isLoading } = useConversations(user?.id, false);
   const { data: archivedConversations = [] } = useConversations(user?.id, true);
   const { canInstall, promptInstall, isIOS } = useInstallPrompt();
+  const { data: callHistory = [] } = useCallHistory(user?.id, 5);
+  const { startCall, callState } = useNativeVideoCall();
   
   // Busca full-text quando há texto de busca (mínimo 2 caracteres)
   const shouldSearch = searchQuery.trim().length >= 2;
@@ -468,10 +474,57 @@ const Index = () => {
             <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Button>
         </div>
+
+        {/* Histórico de Chamadas Recentes */}
+        {!searchQuery && callHistory.length > 0 && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Chamadas Recentes
+              </h3>
+            </div>
+            <div className="grid grid-cols-5 gap-2">
+              {callHistory.slice(0, 5).map((call) => {
+                const isOutgoing = call.caller_id === user?.id;
+                const isMissed = call.status === 'missed';
+                const displayName = isOutgoing 
+                  ? call.conversation_name || "Contato"
+                  : call.caller?.full_name || call.caller?.username || "Desconhecido";
+                
+                return (
+                  <button
+                    key={call.id}
+                    onClick={() => {
+                      // Redirecionar para a conversa ou iniciar nova chamada
+                      navigate(`/chat/${call.conversation_id}`);
+                    }}
+                    className={cn(
+                      "flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-secondary/50 transition-all",
+                      isMissed && "bg-destructive/5"
+                    )}
+                  >
+                    <Avatar className={cn(
+                      "h-10 w-10 ring-2",
+                      isMissed ? "ring-destructive/30" : "ring-border"
+                    )}>
+                      <AvatarImage src={call.caller?.avatar_url} />
+                      <AvatarFallback className="text-xs bg-primary/20">
+                        {displayName.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-[10px] text-muted-foreground truncate w-full text-center">
+                      {displayName.split(' ')[0]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="px-3 py-2 sm:p-4 bg-card border-b border-border">
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-3">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={16} />
             <Input
@@ -603,6 +656,7 @@ const Index = () => {
                     isSelected={selectedConversations.has(conversation.id)}
                     onLongPress={() => handleLongPress(conversation.id)}
                     onToggleSelect={() => handleToggleSelect(conversation.id)}
+                    isInCall={callState.isInCall && callState.conversationId === conversation.id}
                   />
                   </SwipeableConversation>
                 );

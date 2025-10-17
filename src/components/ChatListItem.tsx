@@ -48,6 +48,7 @@ interface ChatListItemProps {
   isSelected?: boolean;
   onLongPress?: () => void;
   onToggleSelect?: () => void;
+  isInCall?: boolean;
 }
 
 const ChatListItem = ({
@@ -81,6 +82,7 @@ const ChatListItem = ({
   isSelected = false,
   onLongPress,
   onToggleSelect,
+  isInCall = false,
 }: ChatListItemProps) => {
   const [showProfileView, setShowProfileView] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -192,6 +194,14 @@ const ChatListItem = ({
       {isPinned && (
         <div className="absolute left-1 top-1/2 -translate-y-1/2">
           <Pin className="h-3 w-3 text-primary fill-primary" />
+        </div>
+      )}
+
+      {/* Indicador de chamada em andamento */}
+      {isInCall && (
+        <div className="absolute right-2 top-2 flex items-center gap-1 bg-green-500 text-white px-2 py-0.5 rounded-full text-[10px] font-semibold shadow-lg animate-pulse">
+          <Phone className="h-3 w-3" />
+          <span>Chamando</span>
         </div>
       )}
 
