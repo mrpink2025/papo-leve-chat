@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Image, File, Link as LinkIcon, Video, FileAudio } from "lucide-react";
 import { format } from "date-fns";
+import { useGroupJoinedAt } from "@/hooks/useGroupJoinedAt";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ChatMediaGalleryProps {
   conversationId: string;
@@ -15,49 +17,67 @@ interface ChatMediaGalleryProps {
 
 export const ChatMediaGallery = ({ conversationId, open, onClose }: ChatMediaGalleryProps) => {
   const [selectedTab, setSelectedTab] = useState("media");
+  const { user } = useAuth();
+  const { data: userJoinedAt } = useGroupJoinedAt(conversationId, user?.id);
 
   const { data: media = [] } = useQuery({
-    queryKey: ["media", conversationId],
+    queryKey: ["media", conversationId, userJoinedAt],
     queryFn: async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
         .in("type", ["image", "video"])
-        .order("created_at", { ascending: false })
-        .limit(100);
+        .order("created_at", { ascending: false });
+
+      // Filtrar por joined_at se for grupo
+      if (userJoinedAt) {
+        query = query.gte("created_at", userJoinedAt);
+      }
       
+      const { data } = await query.limit(100);
       return data || [];
     },
     enabled: open,
   });
 
   const { data: documents = [] } = useQuery({
-    queryKey: ["documents", conversationId],
+    queryKey: ["documents", conversationId, userJoinedAt],
     queryFn: async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
         .in("type", ["document", "audio"])
-        .order("created_at", { ascending: false })
-        .limit(100);
+        .order("created_at", { ascending: false });
+
+      // Filtrar por joined_at se for grupo
+      if (userJoinedAt) {
+        query = query.gte("created_at", userJoinedAt);
+      }
       
+      const { data } = await query.limit(100);
       return data || [];
     },
     enabled: open,
   });
 
   const { data: links = [] } = useQuery({
-    queryKey: ["links", conversationId],
+    queryKey: ["links", conversationId, userJoinedAt],
     queryFn: async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
         .eq("type", "text")
-        .order("created_at", { ascending: false })
-        .limit(200);
+        .order("created_at", { ascending: false });
+
+      // Filtrar por joined_at se for grupo
+      if (userJoinedAt) {
+        query = query.gte("created_at", userJoinedAt);
+      }
+      
+      const { data } = await query.limit(200);
       
       // Filter messages that contain URLs
       const urlRegex = /(https?:\/\/[^\s]+)/g;

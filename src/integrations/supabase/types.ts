@@ -164,7 +164,9 @@ export type Database = {
           conversation_id: string
           id: string
           joined_at: string | null
+          joined_at_history: string | null
           last_read_at: string | null
+          left_at: string | null
           muted: boolean | null
           pinned: boolean | null
           role: string | null
@@ -175,7 +177,9 @@ export type Database = {
           conversation_id: string
           id?: string
           joined_at?: string | null
+          joined_at_history?: string | null
           last_read_at?: string | null
+          left_at?: string | null
           muted?: boolean | null
           pinned?: boolean | null
           role?: string | null
@@ -186,7 +190,9 @@ export type Database = {
           conversation_id?: string
           id?: string
           joined_at?: string | null
+          joined_at_history?: string | null
           last_read_at?: string | null
+          left_at?: string | null
           muted?: boolean | null
           pinned?: boolean | null
           role?: string | null
@@ -1017,6 +1023,10 @@ export type Database = {
         Args: { interaction_type: string; target_user_id: string }
         Returns: boolean
       }
+      can_see_group_message: {
+        Args: { _message_id: string; _user_id: string }
+        Returns: boolean
+      }
       cleanup_expired_notifications: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1060,6 +1070,10 @@ export type Database = {
           pinned: boolean
           unread_count: number
         }[]
+      }
+      get_user_joined_at: {
+        Args: { _conversation_id: string; _user_id: string }
+        Returns: string
       }
       has_role: {
         Args: {

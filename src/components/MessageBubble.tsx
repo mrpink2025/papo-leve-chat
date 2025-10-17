@@ -9,6 +9,7 @@ import { parseMentions, getUserColor } from "@/utils/mentionUtils";
 import { UserContextMenu } from "./UserContextMenu";
 import { StoryReplyPreview } from "./StoryReplyPreview";
 import { StoryReactionPreview } from "./StoryReactionPreview";
+import { RestrictedReplyPreview } from "./RestrictedReplyPreview";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -23,6 +24,7 @@ interface MessageBubbleProps {
   edited?: boolean;
   replyTo?: string;
   replyContent?: string;
+  replyRestricted?: boolean; // Indica se a mensagem citada está restrita
   status?: "sending" | "sent" | "read" | "error";
   onEdit?: (messageId: string, newContent: string) => void;
   onDelete?: (messageId: string) => void;
@@ -53,6 +55,7 @@ const MessageBubble = ({
   edited = false,
   replyTo,
   replyContent,
+  replyRestricted = false,
   status = "sent",
   onEdit,
   onDelete,
@@ -190,7 +193,8 @@ const MessageBubble = ({
             )}
 
             {/* Reply preview */}
-            {replyTo && replyContent && (
+            {replyTo && replyRestricted && <RestrictedReplyPreview />}
+            {replyTo && !replyRestricted && replyContent && (
               <div className="mb-2 pb-2 border-l-2 border-primary/50 pl-2">
                 <p className="text-xs text-muted-foreground line-clamp-2">{replyContent}</p>
               </div>
