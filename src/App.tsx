@@ -38,11 +38,13 @@ const PageLoader = () => (
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutos - dados considerados frescos
-      gcTime: 10 * 60 * 1000, // 10 minutos - tempo no cache (antes era cacheTime)
-      retry: 1, // Tentar apenas 1 vez em caso de erro
-      refetchOnWindowFocus: false, // Não refetch ao focar janela
-      refetchOnReconnect: true, // Refetch ao reconectar
+      staleTime: 2 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      refetchOnMount: true,
     },
   },
 });
@@ -69,7 +71,7 @@ const PWAProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (needRefresh) {
-      updateServiceWorker(true);
+      console.log('[PWA] Nova versão disponível');
     }
   }, [needRefresh, updateServiceWorker]);
 

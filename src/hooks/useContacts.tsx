@@ -25,7 +25,7 @@ export const useContacts = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: contacts, isLoading } = useQuery({
+  const { data: contacts, isLoading, refetch } = useQuery({
     queryKey: ["contacts", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -65,6 +65,8 @@ export const useContacts = () => {
       return contactsWithProfiles as Contact[];
     },
     enabled: !!user?.id,
+    refetchOnMount: true,
+    staleTime: 1 * 60 * 1000,
   });
 
   const addContact = useMutation({
@@ -174,6 +176,7 @@ export const useContacts = () => {
   return {
     contacts,
     isLoading,
+    refetch,
     addContact,
     toggleBlock,
     toggleFavorite,

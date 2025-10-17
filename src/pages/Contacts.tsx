@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, UserPlus, Search, Users } from "lucide-react";
+import { ArrowLeft, UserPlus, Search, Users, RefreshCw } from "lucide-react";
 import { useContacts } from "@/hooks/useContacts";
 import { ContactCard } from "@/components/ContactCard";
 import { AddContactDialog } from "@/components/AddContactDialog";
 import ProfileViewDialog from "@/components/ProfileViewDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function Contacts() {
   const navigate = useNavigate();
@@ -21,10 +22,15 @@ export default function Contacts() {
   const {
     contacts,
     isLoading,
+    refetch,
     toggleBlock,
     toggleFavorite,
     removeContact,
   } = useContacts();
+
+  useEffect(() => {
+    refetch();
+  }, []);
 
   const filteredContacts = contacts?.filter((contact) => {
     const searchLower = searchQuery.toLowerCase();
@@ -89,10 +95,20 @@ export default function Contacts() {
               </p>
             </div>
           </div>
-          <Button onClick={() => setAddDialogOpen(true)} size="sm">
-            <UserPlus className="h-4 w-4 mr-2" />
-            Adicionar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => refetch()}
+              disabled={isLoading}
+            >
+              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+            </Button>
+            <Button onClick={() => setAddDialogOpen(true)} size="sm">
+              <UserPlus className="h-4 w-4 mr-2" />
+              Adicionar
+            </Button>
+          </div>
         </div>
 
         {/* Search */}
