@@ -59,10 +59,10 @@ export const StoriesList = () => {
 
   if (isLoading) {
     return (
-      <div className="flex gap-5 px-4 py-5 bg-background border-b">
+      <div className="flex gap-4 p-4 bg-background border-b">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="flex flex-col items-center gap-2 min-w-[88px] animate-pulse">
-            <div className="h-20 w-20 rounded-full bg-muted" />
+          <div key={i} className="flex flex-col items-center gap-2 min-w-[70px] animate-pulse">
+            <div className="h-16 w-16 rounded-full bg-muted" />
             <div className="h-3 w-12 rounded bg-muted" />
           </div>
         ))}
@@ -72,7 +72,7 @@ export const StoriesList = () => {
 
   return (
     <>
-      <div className="flex gap-5 overflow-x-auto px-4 py-5 bg-background border-b scrollbar-thin">
+      <div className="flex gap-4 overflow-x-auto p-4 bg-background border-b">
         {/* User's own story */}
         <button
           onClick={() => {
@@ -86,24 +86,24 @@ export const StoriesList = () => {
               setShowCreateDialog(true);
             }
           }}
-          className="flex flex-col items-center gap-2 min-w-[88px] hover:opacity-80 active:scale-95 transition-all"
+          className="flex flex-col items-center gap-2 min-w-[70px]"
         >
           <div className="relative">
-            <Avatar className={`h-20 w-20 ${hasUserStories ? 'ring-2 ring-primary' : 'ring-2 ring-muted'}`}>
+            <Avatar className={`h-16 w-16 ${hasUserStories ? 'ring-2 ring-primary' : 'ring-2 ring-muted'}`}>
               <AvatarImage src={currentAvatarUrl || undefined} />
               <AvatarFallback>Você</AvatarFallback>
             </Avatar>
             {hasUserStories ? (
-              <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-semibold">
+              <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-semibold">
                 {userStories.length}
               </div>
             ) : (
               <div className="absolute bottom-0 right-0 bg-primary rounded-full p-1">
-                <Plus className="h-5 w-5 text-primary-foreground" />
+                <Plus className="h-4 w-4 text-primary-foreground" />
               </div>
             )}
           </div>
-          <span className="text-sm font-medium text-center">
+          <span className="text-xs text-center">
             {hasUserStories ? 'Ver seu story' : 'Adicionar'}
           </span>
         </button>
@@ -121,22 +121,22 @@ export const StoriesList = () => {
                 <button
                   key={firstStory.user_id}
                   onClick={() => setSelectedStoryIndex(actualIndex)}
-                  className="flex flex-col items-center gap-2 min-w-[88px] hover:opacity-80 active:scale-95 transition-all"
+                  className="flex flex-col items-center gap-2 min-w-[70px]"
                 >
                   <div className="relative">
-                    <Avatar className="h-20 w-20 ring-2 ring-primary">
+                    <Avatar className="h-16 w-16 ring-2 ring-primary">
                       <AvatarImage src={getAvatarUrl(profile?.avatar_url) || undefined} />
                       <AvatarFallback>
                         {profile?.username?.substring(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     {group.length > 1 && (
-                      <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center text-xs font-semibold">
+                      <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-semibold">
                         {group.length}
                       </div>
                     )}
                   </div>
-                  <span className="text-sm font-medium text-center truncate w-full">
+                  <span className="text-xs text-center truncate w-full">
                     {profile?.full_name || profile?.username}
                   </span>
                 </button>
