@@ -70,21 +70,31 @@ const Index = () => {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <div className="bg-card border-b border-border px-6 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <img src={logo} alt="Nosso Papo" className="h-10 w-10 object-contain" />
-          <h1 className="text-2xl font-bold text-primary tracking-tight">Nosso Papo</h1>
+      <div className="relative bg-gradient-to-r from-card via-card to-accent/5 border-b-2 border-primary/20 px-6 py-4 flex items-center justify-between shadow-lg backdrop-blur-sm">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+        <div className="flex items-center gap-3 relative z-10">
+          <div className="relative group">
+            <div className="absolute inset-0 bg-primary/20 rounded-full blur-md group-hover:blur-lg transition-all" />
+            <img src={logo} alt="Nosso Papo" className="h-11 w-11 object-contain relative z-10 drop-shadow-lg hover:scale-105 transition-transform" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent tracking-tight">
+              Nosso Papo
+            </h1>
+            <p className="text-xs text-muted-foreground">Conecte-se com seus amigos</p>
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 relative z-10">
           {canInstall && (
             <Button
               variant="ghost"
               size="icon"
               onClick={handleInstall}
               title="Instalar App"
-              className="text-muted-foreground hover:text-primary"
+              className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all hover:scale-110 relative group"
             >
-              <Download className="h-5 w-5" />
+              <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 rounded-md transition-all" />
+              <Download className="h-5 w-5 relative z-10" />
             </Button>
           )}
           <Button
@@ -92,17 +102,32 @@ const Index = () => {
             size="icon"
             onClick={() => navigate("/app/contatos")}
             title="Contatos"
-            className="text-muted-foreground hover:text-primary"
+            className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all hover:scale-110 relative group"
           >
-            <Users className="h-5 w-5" />
+            <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 rounded-md transition-all" />
+            <Users className="h-5 w-5 relative z-10" />
           </Button>
           <ThemeToggle />
           <CreateGroupDialog />
-          <Button variant="ghost" size="icon" onClick={() => navigate("/app/configuracoes")} title="Configurações">
-            <Settings className="h-5 w-5" />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate("/app/configuracoes")} 
+            title="Configurações"
+            className="text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all hover:scale-110 relative group"
+          >
+            <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 rounded-md transition-all" />
+            <Settings className="h-5 w-5 relative z-10" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={signOut} title="Sair">
-            <LogOut className="h-5 w-5" />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={signOut} 
+            title="Sair"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10 transition-all hover:scale-110 relative group"
+          >
+            <div className="absolute inset-0 bg-destructive/0 group-hover:bg-destructive/10 rounded-md transition-all" />
+            <LogOut className="h-5 w-5 relative z-10" />
           </Button>
         </div>
       </div>
