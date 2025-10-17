@@ -119,7 +119,9 @@ const Index = () => {
         </div>
       </div>
 
-      <StoriesList />
+      <div className="sticky top-0 z-10 bg-background">
+        <StoriesList />
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <TabsList className="w-full rounded-none border-b">

@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Plus } from 'lucide-react';
+import { Plus, Eye } from 'lucide-react';
 import { useStories } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
 import { useState } from 'react';
@@ -7,6 +7,12 @@ import { StoryViewer } from './StoryViewer';
 import { CreateStoryDialog } from './CreateStoryDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const getAvatarUrl = (avatarPath: string | null) => {
   if (!avatarPath) return null;
@@ -74,39 +80,57 @@ export const StoriesList = () => {
     <>
       <div className="flex gap-4 overflow-x-auto p-4 bg-background border-b">
         {/* User's own story */}
-        <button
-          onClick={() => {
-            if (hasUserStories) {
-              // Find the index of user's stories in storyGroups
-              const userStoryGroupIndex = storyGroups.findIndex(
-                (group: any) => group[0]?.user_id === user?.id
-              );
-              setSelectedStoryIndex(userStoryGroupIndex);
-            } else {
-              setShowCreateDialog(true);
-            }
-          }}
-          className="flex flex-col items-center gap-2 min-w-[70px]"
-        >
-          <div className="relative">
-            <Avatar className={`h-16 w-16 ${hasUserStories ? 'ring-2 ring-primary' : 'ring-2 ring-muted'}`}>
-              <AvatarImage src={currentAvatarUrl || undefined} />
-              <AvatarFallback>Você</AvatarFallback>
-            </Avatar>
-            {hasUserStories ? (
-              <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-semibold">
-                {userStories.length}
-              </div>
-            ) : (
+        {hasUserStories ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex flex-col items-center gap-2 min-w-[70px] hover:opacity-80 transition-opacity">
+                <div className="relative">
+                  <Avatar className="h-16 w-16 ring-2 ring-primary">
+                    <AvatarImage src={currentAvatarUrl || undefined} />
+                    <AvatarFallback>Você</AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-semibold">
+                    {userStories.length}
+                  </div>
+                </div>
+                <span className="text-xs text-center">Seu story</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuItem
+                onClick={() => {
+                  const userStoryGroupIndex = storyGroups.findIndex(
+                    (group: any) => group[0]?.user_id === user?.id
+                  );
+                  setSelectedStoryIndex(userStoryGroupIndex);
+                }}
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                Ver meus stories ({userStories.length})
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowCreateDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Criar novo story
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <button
+            onClick={() => setShowCreateDialog(true)}
+            className="flex flex-col items-center gap-2 min-w-[70px] hover:opacity-80 transition-opacity"
+          >
+            <div className="relative">
+              <Avatar className="h-16 w-16 ring-2 ring-muted">
+                <AvatarImage src={currentAvatarUrl || undefined} />
+                <AvatarFallback>Você</AvatarFallback>
+              </Avatar>
               <div className="absolute bottom-0 right-0 bg-primary rounded-full p-1">
                 <Plus className="h-4 w-4 text-primary-foreground" />
               </div>
-            )}
-          </div>
-          <span className="text-xs text-center">
-            {hasUserStories ? 'Ver seu story' : 'Adicionar'}
-          </span>
-        </button>
+            </div>
+            <span className="text-xs text-center">Adicionar</span>
+          </button>
+        )}
 
         {/* Other users' stories */}
         {otherStories && otherStories.length > 0 ? (
