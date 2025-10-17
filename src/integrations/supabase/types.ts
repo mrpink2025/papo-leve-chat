@@ -166,6 +166,7 @@ export type Database = {
           joined_at: string | null
           last_read_at: string | null
           muted: boolean | null
+          pinned: boolean | null
           role: string | null
           user_id: string
         }
@@ -176,6 +177,7 @@ export type Database = {
           joined_at?: string | null
           last_read_at?: string | null
           muted?: boolean | null
+          pinned?: boolean | null
           role?: string | null
           user_id: string
         }
@@ -186,6 +188,7 @@ export type Database = {
           joined_at?: string | null
           last_read_at?: string | null
           muted?: boolean | null
+          pinned?: boolean | null
           role?: string | null
           user_id?: string
         }
@@ -1046,12 +1049,14 @@ export type Database = {
           last_message_content: string
           last_message_created_at: string
           member_count: number
+          muted: boolean
           other_avatar_url: string
           other_bio: string
           other_full_name: string
           other_status: string
           other_user_id: string
           other_username: string
+          pinned: boolean
           unread_count: number
         }[]
       }

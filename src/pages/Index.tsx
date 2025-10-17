@@ -8,6 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversations";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
@@ -22,6 +32,9 @@ import logo from "@/assets/nosso-papo-logo-transparent.png";
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { data: conversations = [], isLoading } = useConversations(user?.id, false);
@@ -66,6 +79,130 @@ const Index = () => {
     } catch (error) {
       toast.error("Erro ao arquivar conversa");
     }
+  };
+
+  const handlePin = async (conversationId: string) => {
+    try {
+      // Buscar conversas fixadas atuais
+      const { data: pinnedConvs } = await supabase
+        .from("conversation_participants")
+        .select("conversation_id, pinned")
+        .eq("user_id", user?.id)
+        .eq("pinned", true);
+
+      const isPinned = pinnedConvs?.some(c => c.conversation_id === conversationId);
+
+      // Verificar limite de 3 fixadas
+      if (!isPinned && pinnedConvs && pinnedConvs.length >= 3) {
+        toast.error("Você pode fixar no máximo 3 conversas");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("conversation_participants")
+        .update({ pinned: !isPinned })
+        .eq("conversation_id", conversationId)
+        .eq("user_id", user?.id);
+
+      if (error) throw error;
+      toast.success(isPinned ? "Conversa desafixada" : "Conversa fixada");
+    } catch (error) {
+      toast.error("Erro ao fixar conversa");
+    }
+  };
+
+  const handleMute = async (conversationId: string) => {
+    try {
+      // Por enquanto, apenas alterna mute indefinidamente
+      // Futuramente adicionar seletor de duração
+      const { data: current } = await supabase
+        .from("conversation_notification_settings")
+        .select("mode")
+        .eq("conversation_id", conversationId)
+        .eq("user_id", user?.id)
+        .maybeSingle();
+
+      const newMode = current?.mode === "none" ? "all" : "none";
+
+      const { error } = await supabase
+        .from("conversation_notification_settings")
+        .upsert({
+          conversation_id: conversationId,
+          user_id: user!.id,
+          mode: newMode,
+        });
+
+      if (error) throw error;
+      toast.success(newMode === "none" ? "Notificações silenciadas" : "Notificações ativadas");
+    } catch (error) {
+      toast.error("Erro ao silenciar conversa");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedConversation) return;
+    
+    try {
+      // Deletar participação na conversa
+      const { error } = await supabase
+        .from("conversation_participants")
+        .delete()
+        .eq("conversation_id", selectedConversation)
+        .eq("user_id", user?.id);
+
+      if (error) throw error;
+      toast.success("Conversa excluída");
+    } catch (error) {
+      toast.error("Erro ao excluir conversa");
+    } finally {
+      setDeleteDialogOpen(false);
+      setSelectedConversation(null);
+    }
+  };
+
+  const handleClear = async () => {
+    if (!selectedConversation) return;
+
+    try {
+      // Marcar todas as mensagens como deletadas para este usuário
+      const { error } = await supabase
+        .from("messages")
+        .update({ deleted: true })
+        .eq("conversation_id", selectedConversation);
+
+      if (error) throw error;
+      toast.success("Conversa limpa");
+    } catch (error) {
+      toast.error("Erro ao limpar conversa");
+    } finally {
+      setClearDialogOpen(false);
+      setSelectedConversation(null);
+    }
+  };
+
+  const handleMarkRead = async (conversationId: string) => {
+    try {
+      const { error } = await supabase
+        .from("conversation_participants")
+        .update({ last_read_at: new Date().toISOString() })
+        .eq("conversation_id", conversationId)
+        .eq("user_id", user?.id);
+
+      if (error) throw error;
+      toast.success("Marcada como lida");
+    } catch (error) {
+      toast.error("Erro ao marcar como lida");
+    }
+  };
+
+  const handleBlock = async (conversationId: string) => {
+    // TODO: Implementar bloqueio de contato
+    toast.info("Funcionalidade em desenvolvimento");
+  };
+
+  const handleReport = async (conversationId: string) => {
+    // TODO: Implementar denúncia
+    toast.info("Funcionalidade em desenvolvimento");
   };
 
   return (
@@ -168,7 +305,7 @@ const Index = () => {
                   </div>
                 ) : (
                   filteredChats.map((conversation: any) => {
-                const isDirectChat = conversation.type === "direct";
+                 const isDirectChat = conversation.type === "direct";
                 const displayName = isDirectChat
                   ? conversation.other_participant?.full_name || conversation.other_participant?.username || "Usuário"
                   : conversation.name || "Grupo";
@@ -195,6 +332,23 @@ const Index = () => {
                     isGroup={!isDirectChat}
                     memberCount={!isDirectChat ? conversation.member_count : undefined}
                     bio={isDirectChat ? conversation.other_participant?.bio : undefined}
+                    isPinned={conversation.pinned}
+                    isMuted={conversation.muted}
+                    isArchived={conversation.archived}
+                    onArchive={() => handleArchive(conversation.id, conversation.archived)}
+                    onPin={() => handlePin(conversation.id)}
+                    onMute={() => handleMute(conversation.id)}
+                    onDelete={() => {
+                      setSelectedConversation(conversation.id);
+                      setDeleteDialogOpen(true);
+                    }}
+                    onClear={() => {
+                      setSelectedConversation(conversation.id);
+                      setClearDialogOpen(true);
+                    }}
+                    onMarkRead={() => handleMarkRead(conversation.id)}
+                    onBlock={() => handleBlock(conversation.id)}
+                    onReport={() => handleReport(conversation.id)}
                   />
                 );
                   })
@@ -204,6 +358,41 @@ const Index = () => {
           </ScrollArea>
         </TabsContent>
       </Tabs>
+
+      {/* Diálogos de confirmação */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir conversa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Todas as mensagens serão removidas permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpar conversa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Todas as mensagens serão removidas, mas a conversa será mantida.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClear}>
+              Limpar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -8,6 +8,8 @@ export interface Conversation {
   avatar_url: string | null;
   updated_at: string;
   archived?: boolean;
+  pinned?: boolean;
+  muted?: boolean;
   last_message?: {
     content: string;
     created_at: string;
@@ -47,6 +49,8 @@ export const useConversations = (userId: string | undefined, includeArchived = f
         avatar_url: row.conversation_avatar_url,
         updated_at: row.conversation_updated_at,
         archived: row.archived,
+        pinned: row.pinned,
+        muted: row.muted,
         last_message: row.last_message_content
           ? {
               content: row.last_message_content,
