@@ -63,7 +63,8 @@ const Index = () => {
   const { data: conversations = [], isLoading } = useConversations(user?.id, false);
   const { data: archivedConversations = [] } = useConversations(user?.id, true);
   const { canInstall, promptInstall, isIOS } = useInstallPrompt();
-  const { data: callHistory = [] } = useCallHistory(user?.id, 5);
+  const { data: recentCalls = [] } = useCallHistory(user?.id, 5);
+  const { data: allCalls = [] } = useCallHistory(user?.id, 50);
   const { startCall, callState } = useNativeVideoCall();
   
   // Busca full-text quando há texto de busca (mínimo 2 caracteres)
@@ -476,7 +477,7 @@ const Index = () => {
         </div>
 
         {/* Histórico de Chamadas Recentes */}
-        {!searchQuery && callHistory.length > 0 && (
+        {!searchQuery && recentCalls.length > 0 && (
           <div className="mt-3">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -484,7 +485,7 @@ const Index = () => {
               </h3>
             </div>
             <div className="grid grid-cols-5 gap-2">
-              {callHistory.slice(0, 5).map((call) => {
+              {recentCalls.slice(0, 5).map((call) => {
                 const isOutgoing = call.caller_id === user?.id;
                 const isMissed = call.status === 'missed';
                 const displayName = isOutgoing 
@@ -562,6 +563,15 @@ const Index = () => {
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="calls" className="flex-1 relative">
+            <Phone className="h-4 w-4 mr-2" />
+            Chamadas
+            {allCalls.filter((c: any) => c.status === 'missed' && c.caller_id !== user?.id).length > 0 && (
+              <span className="ml-2 px-1.5 py-0.5 bg-destructive text-destructive-foreground text-xs font-bold rounded-full">
+                {allCalls.filter((c: any) => c.status === 'missed' && c.caller_id !== user?.id).length}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="archived" className="flex-1 relative">
             <Archive className="h-4 w-4 mr-2" />
             Arquivadas
@@ -573,7 +583,200 @@ const Index = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value={activeTab} className="flex-1 m-0">
+        <TabsContent value="all" className="flex-1 m-0">
+          <ScrollArea className="h-full">
+            {(isLoading || (shouldSearch && isSearchLoading)) ? (
+              <div className="flex items-center justify-center h-96">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {filteredChats.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-96 text-muted-foreground">
+                    {shouldSearch ? (
+                      <>
+                        <Search className="h-12 w-12 mb-4 opacity-50" />
+                        <p>Nenhum resultado para "{searchQuery}"</p>
+                        <p className="text-sm mt-2">Tente usar termos diferentes</p>
+                      </>
+                    ) : Object.values(filters).some(Boolean) ? (
+                      <>
+                        <Filter className="h-12 w-12 mb-4 opacity-50" />
+                        <p>Nenhuma conversa com os filtros aplicados</p>
+                      </>
+                    ) : (
+                      <p>Nenhuma conversa encontrada</p>
+                    )}
+                  </div>
+                ) : (
+                  filteredChats.map((conversation: any) => {
+                 const isDirectChat = conversation.type === "direct";
+                const displayName = isDirectChat
+                  ? conversation.other_participant?.full_name || conversation.other_participant?.username || "Usuário"
+                  : conversation.name || "Grupo";
+                const displayAvatar = isDirectChat
+                  ? conversation.other_participant?.avatar_url || "/placeholder.svg"
+                  : conversation.avatar_url || "/placeholder.svg";
+                const isOnline = isDirectChat && conversation.other_participant?.status === "online";
+                const lastMessage = conversation.last_message?.content || "Sem mensagens";
+                const timestamp = conversation.last_message?.created_at
+                  ? format(new Date(conversation.last_message.created_at), "HH:mm", { locale: ptBR })
+                  : "";
+
+                return (
+                  <SwipeableConversation
+                    key={conversation.id}
+                    onSwipeLeft={() => handleArchive(conversation.id, conversation.archived)}
+                    onSwipeRight={() => handlePin(conversation.id)}
+                    isArchived={conversation.archived}
+                    isPinned={conversation.pinned}
+                  >
+                    <ChatListItem
+                    key={conversation.id}
+                    id={conversation.id}
+                    name={displayName}
+                    avatar={displayAvatar}
+                    lastMessage={lastMessage}
+                    timestamp={timestamp}
+                    unread={conversation.unread_count || 0}
+                    online={isOnline}
+                    onClick={() => navigate(`/app/chat/${conversation.id}`)}
+                    isGroup={!isDirectChat}
+                    memberCount={!isDirectChat ? conversation.member_count : undefined}
+                    bio={isDirectChat ? conversation.other_participant?.bio : undefined}
+                    isPinned={conversation.pinned}
+                    isMuted={conversation.muted}
+                    mutedUntil={conversation.muted_until}
+                    isArchived={conversation.archived}
+                    onArchive={() => handleArchive(conversation.id, conversation.archived)}
+                    onPin={() => handlePin(conversation.id)}
+                    onMute={() => handleMute(conversation.id, displayName)}
+                    onDelete={() => {
+                      setSelectedConversation(conversation.id);
+                      setDeleteDialogOpen(true);
+                    }}
+                    onClear={() => {
+                      setSelectedConversation(conversation.id);
+                      setClearDialogOpen(true);
+                    }}
+                    onMarkRead={() => handleMarkRead(conversation.id)}
+                    onBlock={() => handleBlock(conversation.id)}
+                    onReport={() => handleReport(conversation.id)}
+                    isSelectionMode={isSelectionMode}
+                    isSelected={selectedConversations.has(conversation.id)}
+                    onLongPress={() => handleLongPress(conversation.id)}
+                    onToggleSelect={() => handleToggleSelect(conversation.id)}
+                    isInCall={callState.isInCall && callState.conversationId === conversation.id}
+                  />
+                  </SwipeableConversation>
+                );
+                  })
+                )}
+              </div>
+            )}
+          </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="calls" className="flex-1 m-0">
+          <ScrollArea className="h-full">
+            {isLoading ? (
+              <div className="flex items-center justify-center h-96">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : allCalls.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-96 text-muted-foreground">
+                <Phone className="h-12 w-12 mb-4 opacity-50" />
+                <p>Nenhuma chamada registrada</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {allCalls.map((call) => {
+                  const isOutgoing = call.caller_id === user?.id;
+                  const isMissed = call.status === 'missed';
+                  const isAnswered = call.status === 'answered' || call.status === 'ended';
+                  const displayName = isOutgoing 
+                    ? call.conversation_name || "Contato"
+                    : call.caller?.full_name || call.caller?.username || "Desconhecido";
+                  const timestamp = call.started_at
+                    ? format(new Date(call.started_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                    : "";
+                  
+                  let statusText = "";
+                  let statusColor = "text-muted-foreground";
+                  
+                  if (isMissed) {
+                    statusText = isOutgoing ? "Sem resposta" : "Perdida";
+                    statusColor = "text-destructive";
+                  } else if (isAnswered && call.duration_seconds) {
+                    const minutes = Math.floor(call.duration_seconds / 60);
+                    const seconds = call.duration_seconds % 60;
+                    statusText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    statusColor = "text-success";
+                  } else if (call.status === 'rejected') {
+                    statusText = "Recusada";
+                    statusColor = "text-destructive";
+                  } else {
+                    statusText = isOutgoing ? "Efetuada" : "Recebida";
+                  }
+
+                  return (
+                    <div
+                      key={call.id}
+                      onClick={() => navigate(`/app/chat/${call.conversation_id}`)}
+                      className="flex items-center gap-3 p-4 hover:bg-secondary/50 cursor-pointer transition-colors"
+                    >
+                      <Avatar className={cn(
+                        "h-12 w-12 ring-2",
+                        isMissed && !isOutgoing ? "ring-destructive/30" : "ring-border"
+                      )}>
+                        <AvatarImage src={call.caller?.avatar_url} />
+                        <AvatarFallback className="bg-primary/20">
+                          {displayName.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold truncate">{displayName}</h3>
+                          <Phone className={cn(
+                            "h-3.5 w-3.5 flex-shrink-0",
+                            isOutgoing ? "rotate-90" : "-rotate-90",
+                            isMissed && !isOutgoing && "text-destructive"
+                          )} />
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className={statusColor}>{statusText}</span>
+                          <span className="text-muted-foreground">• {timestamp}</span>
+                        </div>
+                      </div>
+                      
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startCall(
+                            call.conversation_id, 
+                            call.call_type as 'audio' | 'video',
+                            {
+                              name: displayName,
+                              avatar: call.caller?.avatar_url
+                            }
+                          );
+                        }}
+                        className="flex-shrink-0"
+                      >
+                        <Phone className="h-5 w-5 text-success" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="archived" className="flex-1 m-0">
           <ScrollArea className="h-full">
             {(isLoading || (shouldSearch && isSearchLoading)) ? (
               <div className="flex items-center justify-center h-96">
