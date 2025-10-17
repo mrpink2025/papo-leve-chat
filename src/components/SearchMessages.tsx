@@ -6,8 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
-import { useGroupJoinedAt } from "@/hooks/useGroupJoinedAt";
-import { useAuth } from "@/hooks/useAuth";
 
 interface SearchMessagesProps {
   conversationId: string;
@@ -21,11 +19,9 @@ const SearchMessages = ({
   onMessageSelect,
 }: SearchMessagesProps) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const { user } = useAuth();
-  const { data: userJoinedAt } = useGroupJoinedAt(conversationId, user?.id);
 
   const { data: results = [], isLoading } = useQuery({
-    queryKey: ["searchMessages", conversationId, searchTerm, userJoinedAt],
+    queryKey: ["searchMessages", conversationId, searchTerm],
     queryFn: async () => {
       if (!searchTerm || searchTerm.length < 2) return [];
 
@@ -37,7 +33,7 @@ const SearchMessages = ({
 
       if (!sanitizedTerm) return [];
 
-      let query = supabase
+      const { data, error } = await supabase
         .from("messages")
         .select(`
           id,
@@ -49,14 +45,8 @@ const SearchMessages = ({
         .eq("conversation_id", conversationId)
         .eq("deleted", false)
         .ilike("content", `%${sanitizedTerm}%`)
-        .order("created_at", { ascending: false });
-
-      // Filtrar por joined_at se for grupo
-      if (userJoinedAt) {
-        query = query.gte("created_at", userJoinedAt);
-      }
-
-      const { data, error } = await query.limit(50);
+        .order("created_at", { ascending: false })
+        .limit(50);
 
       if (error) throw error;
       return data;

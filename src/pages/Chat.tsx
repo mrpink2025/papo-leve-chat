@@ -14,8 +14,6 @@ import { IncomingNativeCallDialog } from "@/components/IncomingNativeCallDialog"
 import ProfileViewDialog from "@/components/ProfileViewDialog";
 import { GroupCallBanner } from "@/components/GroupCallBanner";
 import { GroupCallDialog } from "@/components/GroupCallDialog";
-import { GroupJoinDivider } from "@/components/GroupJoinDivider";
-import { HistoryVisibilityNotice } from "@/components/HistoryVisibilityNotice";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessages } from "@/hooks/useMessages";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
@@ -26,7 +24,6 @@ import { useIncomingCalls } from "@/hooks/useIncomingCalls";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useMessageStatus } from "@/hooks/useMessageStatus";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
-import { useGroupJoinedAt } from "@/hooks/useGroupJoinedAt";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -180,9 +177,7 @@ const Chat = () => {
   const { messages, sendMessage, hasNextPage, loadMore } = useMessages(id, user?.id);
   const { typingUsers, setTyping } = useTypingIndicator(id || "", user?.id || "");
   const { editMessage, deleteMessage } = useMessageActions(id || "");
-  const { data: userJoinedAt } = useGroupJoinedAt(id, user?.id);
-  const [showJoinNotice, setShowJoinNotice] = useState(false);
-  const {
+  const { 
     callState, 
     startCall, 
     endCall, 
@@ -207,18 +202,6 @@ const Chat = () => {
   const { markAsRead, getMessageStatus } = useMessageStatus(id, user?.id);
   const { isOnline: isNetworkOnline, addToQueue, removeFromQueue } = useOfflineQueue();
   const { toast } = useToast();
-
-  // Mostrar aviso de histórico na primeira vez para grupos
-  useEffect(() => {
-    if (conversation?.type === "group" && id) {
-      const noticeKey = `history-notice-shown-${id}`;
-      const hasShownNotice = localStorage.getItem(noticeKey);
-      if (!hasShownNotice) {
-        setShowJoinNotice(true);
-        localStorage.setItem(noticeKey, "true");
-      }
-    }
-  }, [conversation?.type, id]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -814,11 +797,6 @@ const Chat = () => {
         />
       )}
 
-      {/* Aviso de visibilidade de histórico (primeira vez em grupos) */}
-      {conversation?.type === "group" && showJoinNotice && id && (
-        <HistoryVisibilityNotice conversationId={id} />
-      )}
-
       <Virtuoso
         ref={virtuosoRef}
         data={messages}
@@ -859,29 +837,10 @@ const Chat = () => {
               new Date(messages[index - 1].created_at)
             );
 
-          // Verificar se deve mostrar divisor de entrada no grupo
-          const showJoinDivider = 
-            conversation?.type === "group" &&
-            userJoinedAt &&
-            index > 0 &&
-            new Date(messages[index - 1].created_at) < new Date(userJoinedAt) &&
-            new Date(message.created_at) >= new Date(userJoinedAt);
-
           const status = getMessageStatus(message.id);
-          
-          // Buscar conteúdo do reply
-          const replyMessage = message.reply_to
-            ? messages.find((m: any) => m.id === message.reply_to)
+          const replyContent = message.reply_to
+            ? messages.find((m: any) => m.id === message.reply_to)?.content
             : undefined;
-          
-          // Verificar se o reply é de uma mensagem restrita (anterior ao joined_at)
-          const replyRestricted = 
-            conversation?.type === "group" &&
-            userJoinedAt &&
-            replyMessage &&
-            new Date(replyMessage.created_at) < new Date(userJoinedAt);
-
-          const replyContent = replyRestricted ? undefined : replyMessage?.content;
 
           const prevMessage = index > 0 ? messages[index - 1] : null;
           const showSenderInfo = 
@@ -896,12 +855,6 @@ const Chat = () => {
               {showDateSeparator && (
                 <DateSeparator date={new Date(message.created_at)} />
               )}
-              {showJoinDivider && (
-                <GroupJoinDivider 
-                  joinedAt={userJoinedAt} 
-                  userName={user?.user_metadata?.full_name || user?.user_metadata?.username}
-                />
-              )}
               <MessageBubble
                 id={message.id}
                 content={message.content}
@@ -913,7 +866,6 @@ const Chat = () => {
                 edited={message.edited}
                 replyTo={message.reply_to}
                 replyContent={replyContent}
-                replyRestricted={replyRestricted}
                 status={status}
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}

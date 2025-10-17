@@ -8,6 +8,3 @@ verify_jwt = true
 
 [functions.cleanup-group-calls]
 verify_jwt = false
-
-[functions.get-media-url]
-verify_jwt = true
