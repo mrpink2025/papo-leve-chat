@@ -33,8 +33,10 @@ export default function Contacts() {
   }, []);
 
   const filteredContacts = contacts?.filter((contact) => {
+    if (!contact?.contact) return false;
+    
     const searchLower = searchQuery.toLowerCase();
-    const username = contact.contact.username.toLowerCase();
+    const username = contact.contact.username?.toLowerCase() || "";
     const fullName = contact.contact.full_name?.toLowerCase() || "";
     const nickname = contact.nickname?.toLowerCase() || "";
     return username.includes(searchLower) || fullName.includes(searchLower) || nickname.includes(searchLower);
