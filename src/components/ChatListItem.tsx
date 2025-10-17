@@ -32,6 +32,7 @@ interface ChatListItemProps {
   bio?: string;
   isPinned?: boolean;
   isMuted?: boolean;
+  mutedUntil?: string | null;
   isArchived?: boolean;
   hasNewStory?: boolean;
   messageStatus?: 'sent' | 'delivered' | 'read';
@@ -64,6 +65,7 @@ const ChatListItem = ({
   bio,
   isPinned = false,
   isMuted = false,
+  mutedUntil = null,
   isArchived = false,
   hasNewStory = false,
   messageStatus,
@@ -83,6 +85,26 @@ const ChatListItem = ({
   const [showProfileView, setShowProfileView] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const [isPressing, setIsPressing] = useState(false);
+
+  // Calcular texto de "silenciado até"
+  const getMutedText = () => {
+    if (!mutedUntil) return null;
+    
+    const until = new Date(mutedUntil);
+    const now = new Date();
+    
+    if (until <= now) return null; // Expirou
+    
+    const diffHours = Math.ceil((until.getTime() - now.getTime()) / (1000 * 60 * 60));
+    
+    if (diffHours < 24) {
+      return `Até ${until.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+      return `Até ${until.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`;
+    }
+  };
+
+  const mutedText = getMutedText();
 
   const handleTouchStart = () => {
     setIsPressing(true);
@@ -197,20 +219,27 @@ const ChatListItem = ({
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <h3 className={cn(
-              "font-semibold truncate",
-              unread > 0 ? "text-foreground" : "text-foreground/80"
-            )}>
-              {name}
-            </h3>
-            {isMuted && <BellOff className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />}
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <h3 className={cn(
+                "font-semibold truncate",
+                unread > 0 ? "text-foreground" : "text-foreground/80"
+              )}>
+                {name}
+              </h3>
+              {isMuted && (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <BellOff className="h-3.5 w-3.5 text-muted-foreground" />
+                  {mutedText && (
+                    <span className="text-[10px] text-muted-foreground">{mutedText}</span>
+                  )}
+                </div>
+              )}
+            </div>
+            <span className="text-[11px] text-muted-foreground flex-shrink-0">
+              {timestamp}
+            </span>
           </div>
-          <span className="text-[11px] text-muted-foreground flex-shrink-0">
-            {timestamp}
-          </span>
-        </div>
         
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 flex-1 min-w-0">

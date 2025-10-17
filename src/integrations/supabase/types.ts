@@ -1050,6 +1050,7 @@ export type Database = {
           last_message_created_at: string
           member_count: number
           muted: boolean
+          muted_until: string
           other_avatar_url: string
           other_bio: string
           other_full_name: string

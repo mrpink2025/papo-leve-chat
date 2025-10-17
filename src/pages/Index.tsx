@@ -4,6 +4,7 @@ import { Search, Settings, Archive, LogOut, Download, Users } from "lucide-react
 import ChatListItem from "@/components/ChatListItem";
 import { SwipeableConversation } from "@/components/SwipeableConversation";
 import { SelectionActionBar } from "@/components/SelectionActionBar";
+import { MuteDurationDialog } from "@/components/MuteDurationDialog";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { StoriesList } from "@/components/StoriesList";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,8 @@ const Index = () => {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
+  const [muteDurationDialogOpen, setMuteDurationDialogOpen] = useState(false);
+  const [conversationToMute, setConversationToMute] = useState<{ id: string; name: string } | null>(null);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { data: conversations = [], isLoading } = useConversations(user?.id, false);
@@ -69,6 +72,15 @@ const Index = () => {
         ? conversation.other_participant?.username || "Usuário"
         : conversation.name || "Grupo";
       return displayName.toLowerCase().includes(searchQuery.toLowerCase());
+    })
+    .sort((a: any, b: any) => {
+      // Ordenar: fixadas primeiro, depois por timestamp
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      
+      const aTime = new Date(a.last_message?.created_at || a.updated_at).getTime();
+      const bTime = new Date(b.last_message?.created_at || b.updated_at).getTime();
+      return bTime - aTime;
     });
 
   const handleArchive = async (conversationId: string, archived: boolean) => {
@@ -116,31 +128,54 @@ const Index = () => {
     }
   };
 
-  const handleMute = async (conversationId: string) => {
-    try {
-      // Por enquanto, apenas alterna mute indefinidamente
-      // Futuramente adicionar seletor de duração
-      const { data: current } = await supabase
-        .from("conversation_notification_settings")
-        .select("mode")
-        .eq("conversation_id", conversationId)
-        .eq("user_id", user?.id)
-        .maybeSingle();
+  const handleMute = async (conversationId: string, conversationName: string) => {
+    setConversationToMute({ id: conversationId, name: conversationName });
+    setMuteDurationDialogOpen(true);
+  };
 
-      const newMode = current?.mode === "none" ? "all" : "none";
+  const handleMuteDuration = async (hours: number | null) => {
+    if (!conversationToMute) return;
+
+    try {
+      let mutedUntil = null;
+      let mode = "all";
+
+      if (hours === 0) {
+        // Reativar notificações
+        mode = "all";
+        mutedUntil = null;
+      } else if (hours === null) {
+        // Silenciar para sempre
+        mode = "none";
+        mutedUntil = null;
+      } else {
+        // Silenciar por período específico
+        mode = "none";
+        mutedUntil = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+      }
 
       const { error } = await supabase
         .from("conversation_notification_settings")
         .upsert({
-          conversation_id: conversationId,
+          conversation_id: conversationToMute.id,
           user_id: user!.id,
-          mode: newMode,
+          mode,
+          muted_until: mutedUntil,
         });
 
       if (error) throw error;
-      toast.success(newMode === "none" ? "Notificações silenciadas" : "Notificações ativadas");
+      
+      if (hours === 0) {
+        toast.success("Notificações reativadas");
+      } else if (hours === null) {
+        toast.success("Conversa silenciada permanentemente");
+      } else {
+        toast.success(`Conversa silenciada por ${hours >= 24 ? `${hours / 24} dia(s)` : `${hours} hora(s)`}`);
+      }
     } catch (error) {
       toast.error("Erro ao silenciar conversa");
+    } finally {
+      setConversationToMute(null);
     }
   };
 
@@ -244,9 +279,22 @@ const Index = () => {
   };
 
   const handleBatchMute = async () => {
+    // Para seleção múltipla, silenciar permanentemente
     for (const convId of selectedConversations) {
-      await handleMute(convId);
+      try {
+        await supabase
+          .from("conversation_notification_settings")
+          .upsert({
+            conversation_id: convId,
+            user_id: user!.id,
+            mode: "none",
+            muted_until: null,
+          });
+      } catch (error) {
+        console.error("Erro ao silenciar conversa:", error);
+      }
     }
+    toast.success(`${selectedConversations.size} conversa(s) silenciada(s)`);
     handleCancelSelection();
   };
 
@@ -378,10 +426,22 @@ const Index = () => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <TabsList className="w-full rounded-none border-b">
-          <TabsTrigger value="all" className="flex-1">Todas</TabsTrigger>
-          <TabsTrigger value="archived" className="flex-1">
+          <TabsTrigger value="all" className="flex-1 relative">
+            Todas
+            {conversations.filter((c: any) => !c.archived && c.unread_count > 0).length > 0 && (
+              <span className="ml-2 px-1.5 py-0.5 bg-primary text-primary-foreground text-xs font-bold rounded-full">
+                {conversations.filter((c: any) => !c.archived && c.unread_count > 0).length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="archived" className="flex-1 relative">
             <Archive className="h-4 w-4 mr-2" />
             Arquivadas
+            {archivedConversations.filter((c: any) => c.unread_count > 0).length > 0 && (
+              <span className="ml-2 px-1.5 py-0.5 bg-primary text-primary-foreground text-xs font-bold rounded-full">
+                {archivedConversations.filter((c: any) => c.unread_count > 0).length}
+              </span>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -435,10 +495,11 @@ const Index = () => {
                     bio={isDirectChat ? conversation.other_participant?.bio : undefined}
                     isPinned={conversation.pinned}
                     isMuted={conversation.muted}
+                    mutedUntil={conversation.muted_until}
                     isArchived={conversation.archived}
                     onArchive={() => handleArchive(conversation.id, conversation.archived)}
                     onPin={() => handlePin(conversation.id)}
-                    onMute={() => handleMute(conversation.id)}
+                    onMute={() => handleMute(conversation.id, displayName)}
                     onDelete={() => {
                       setSelectedConversation(conversation.id);
                       setDeleteDialogOpen(true);
@@ -507,6 +568,17 @@ const Index = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog de duração do mute */}
+      <MuteDurationDialog
+        open={muteDurationDialogOpen}
+        onClose={() => {
+          setMuteDurationDialogOpen(false);
+          setConversationToMute(null);
+        }}
+        onSelectDuration={handleMuteDuration}
+        conversationName={conversationToMute?.name || ""}
+      />
     </div>
   );
 };

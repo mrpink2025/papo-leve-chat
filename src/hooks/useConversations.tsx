@@ -10,6 +10,7 @@ export interface Conversation {
   archived?: boolean;
   pinned?: boolean;
   muted?: boolean;
+  muted_until?: string | null;
   last_message?: {
     content: string;
     created_at: string;
@@ -42,35 +43,41 @@ export const useConversations = (userId: string | undefined, includeArchived = f
       if (!data || data.length === 0) return [];
 
       // Mapear resultado da RPC para formato esperado
-      return data.map((row: any) => ({
-        id: row.conversation_id,
-        type: row.conversation_type,
-        name: row.conversation_name,
-        avatar_url: row.conversation_avatar_url,
-        updated_at: row.conversation_updated_at,
-        archived: row.archived,
-        pinned: row.pinned,
-        muted: row.muted,
-        last_message: row.last_message_content
-          ? {
-              content: row.last_message_content,
-              created_at: row.last_message_created_at,
-            }
-          : null,
-        unread_count: Number(row.unread_count) || 0,
-        member_count: row.conversation_type === "group" ? Number(row.member_count) : undefined,
-        other_participant:
-          row.conversation_type === "direct" && row.other_user_id
+      return data.map((row: any) => {
+        // Calcular se está realmente silenciado baseado em muted_until
+        const isMuted = row.muted || (row.muted_until && new Date(row.muted_until) > new Date());
+        
+        return {
+          id: row.conversation_id,
+          type: row.conversation_type,
+          name: row.conversation_name,
+          avatar_url: row.conversation_avatar_url,
+          updated_at: row.conversation_updated_at,
+          archived: row.archived,
+          pinned: row.pinned,
+          muted: isMuted,
+          muted_until: row.muted_until,
+          last_message: row.last_message_content
             ? {
-                id: row.other_user_id,
-                username: row.other_username,
-                full_name: row.other_full_name,
-                avatar_url: row.other_avatar_url,
-                status: row.other_status,
-                bio: row.other_bio,
+                content: row.last_message_content,
+                created_at: row.last_message_created_at,
               }
             : null,
-      }));
+          unread_count: Number(row.unread_count) || 0,
+          member_count: row.conversation_type === "group" ? Number(row.member_count) : undefined,
+          other_participant:
+            row.conversation_type === "direct" && row.other_user_id
+              ? {
+                  id: row.other_user_id,
+                  username: row.other_username,
+                  full_name: row.other_full_name,
+                  avatar_url: row.other_avatar_url,
+                  status: row.other_status,
+                  bio: row.other_bio,
+                }
+              : null,
+        };
+      });
     },
     enabled: !!userId,
     staleTime: 30000, // Cache por 30s
