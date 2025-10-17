@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
+import { CallNotificationDebug } from "@/components/CallNotificationDebug";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -286,7 +287,15 @@ const Settings = () => {
 
           <Separator className="my-6" />
 
-          {/* Privacy Section */}
+          {/* Debug Panel - Only in development */}
+          {import.meta.env.DEV && (
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">🔧 Debug - Sistema de Chamadas</h2>
+              <CallNotificationDebug />
+            </div>
+          )}
+
+          <Separator className="my-6" />
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">Privacidade</h2>
             <button

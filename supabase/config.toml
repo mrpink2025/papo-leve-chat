@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.get-media-url]
 verify_jwt = true
+
+[functions.cleanup-expired-calls]
+verify_jwt = false
+
+[functions.cleanup-inactive-tokens]
+verify_jwt = false
