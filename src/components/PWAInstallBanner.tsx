@@ -9,22 +9,38 @@ const PWAInstallBanner = () => {
   const location = useLocation();
   const { canInstall, promptInstall, isIOS, isInstalled, isPWACapable } = useInstallPrompt();
   const [isDismissed, setIsDismissed] = useState(false);
+  const [hasShownThisSession, setHasShownThisSession] = useState(false);
 
   // Modo de teste via query param
   const isTestMode = new URLSearchParams(window.location.search).get("show-pwa-banner") === "true";
 
-  // Verificar se o banner foi dispensado nos últimos 7 dias
+  // Verificar dismiss de 7 dias E sessão atual
   useEffect(() => {
+    // Checar localStorage (7 dias)
     const dismissedUntil = localStorage.getItem("pwa_banner_dismissed_until");
     if (dismissedUntil) {
       const dismissedDate = new Date(dismissedUntil);
       if (dismissedDate > new Date()) {
         setIsDismissed(true);
+        return;
       } else {
         localStorage.removeItem("pwa_banner_dismissed_until");
       }
     }
-  }, []);
+
+    // Checar sessionStorage (sessão atual)
+    const shownThisSession = sessionStorage.getItem("pwa_banner_shown");
+    if (shownThisSession === "true") {
+      setHasShownThisSession(true);
+      return;
+    }
+
+    // Se passou todas as verificações, marcar como mostrado nesta sessão
+    if (canInstall && !isInstalled) {
+      sessionStorage.setItem("pwa_banner_shown", "true");
+      setHasShownThisSession(true);
+    }
+  }, [canInstall, isInstalled]);
 
   const handleDismiss = () => {
     setIsDismissed(true);
@@ -41,6 +57,10 @@ const PWAInstallBanner = () => {
       const installed = await promptInstall();
       if (installed) {
         setIsDismissed(true);
+        // Marcar como instalado para não aparecer mais (1 ano)
+        const dismissedUntil = new Date();
+        dismissedUntil.setFullYear(dismissedUntil.getFullYear() + 1);
+        localStorage.setItem("pwa_banner_dismissed_until", dismissedUntil.toISOString());
       } else {
         // Se o prompt falhar, redirecionar para a página de instruções
         window.location.href = "/install";
@@ -50,9 +70,10 @@ const PWAInstallBanner = () => {
 
   // Não mostrar o banner se:
   // 1. Já está instalado
-  // 2. Foi dispensado recentemente (a menos que esteja em modo teste)
-  // 3. Não pode ser instalado
-  // 4. Está na rota de chat (/app/chat/:id ou /chat/:id)
+  // 2. Foi dispensado (7 dias)
+  // 3. Já foi mostrado nesta sessão
+  // 4. Não pode ser instalado
+  // 5. Está na rota de chat (/app/chat/:id ou /chat/:id)
   const isInChatRoute = useMemo(
     () => location.pathname.startsWith("/app/chat") || location.pathname.startsWith("/chat/"),
     [location.pathname]
@@ -61,7 +82,7 @@ const PWAInstallBanner = () => {
   // Modo teste ignora todas as restrições
   if (isTestMode) {
     console.log("🧪 [PWA Banner] Modo de teste ativado - exibindo banner");
-  } else if (isInstalled || isDismissed || !canInstall || isInChatRoute) {
+  } else if (isInstalled || isDismissed || hasShownThisSession || !canInstall || isInChatRoute) {
     return null;
   }
 
