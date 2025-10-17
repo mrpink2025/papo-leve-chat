@@ -123,7 +123,7 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       devOptions: {
-        enabled: true,
+        enabled: mode === 'development' && process.env.VITE_PWA_DEV === 'true',
       },
     }),
   ].filter(Boolean),
