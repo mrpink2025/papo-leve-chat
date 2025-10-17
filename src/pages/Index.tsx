@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Settings, Archive, LogOut, Download, Users } from "lucide-react";
 import ChatListItem from "@/components/ChatListItem";
+import { SwipeableConversation } from "@/components/SwipeableConversation";
+import { SelectionActionBar } from "@/components/SelectionActionBar";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { StoriesList } from "@/components/StoriesList";
 import { Input } from "@/components/ui/input";
@@ -28,6 +30,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import logo from "@/assets/nosso-papo-logo-transparent.png";
+import { cn } from "@/lib/utils";
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,6 +38,8 @@ const Index = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { data: conversations = [], isLoading } = useConversations(user?.id, false);
@@ -205,9 +210,98 @@ const Index = () => {
     toast.info("Funcionalidade em desenvolvimento");
   };
 
+  // Funções de seleção múltipla
+  const handleLongPress = (conversationId: string) => {
+    setIsSelectionMode(true);
+    setSelectedConversations(new Set([conversationId]));
+  };
+
+  const handleToggleSelect = (conversationId: string) => {
+    const newSelected = new Set(selectedConversations);
+    if (newSelected.has(conversationId)) {
+      newSelected.delete(conversationId);
+    } else {
+      newSelected.add(conversationId);
+    }
+    setSelectedConversations(newSelected);
+    
+    // Se não houver mais seleções, sair do modo de seleção
+    if (newSelected.size === 0) {
+      setIsSelectionMode(false);
+    }
+  };
+
+  const handleCancelSelection = () => {
+    setIsSelectionMode(false);
+    setSelectedConversations(new Set());
+  };
+
+  const handleBatchPin = async () => {
+    for (const convId of selectedConversations) {
+      await handlePin(convId);
+    }
+    handleCancelSelection();
+  };
+
+  const handleBatchMute = async () => {
+    for (const convId of selectedConversations) {
+      await handleMute(convId);
+    }
+    handleCancelSelection();
+  };
+
+  const handleBatchArchive = async () => {
+    for (const convId of selectedConversations) {
+      const conv = conversations.find(c => c.id === convId);
+      if (conv) {
+        await handleArchive(convId, conv.archived);
+      }
+    }
+    handleCancelSelection();
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedConversations.size === 0) return;
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmBatchDelete = async () => {
+    for (const convId of selectedConversations) {
+      try {
+        const { error } = await supabase
+          .from("conversation_participants")
+          .delete()
+          .eq("conversation_id", convId)
+          .eq("user_id", user?.id);
+
+        if (error) throw error;
+      } catch (error) {
+        toast.error("Erro ao excluir algumas conversas");
+      }
+    }
+    toast.success(`${selectedConversations.size} conversa(s) excluída(s)`);
+    handleCancelSelection();
+    setDeleteDialogOpen(false);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-background">
-      <div className="relative bg-gradient-to-r from-card via-card to-accent/5 border-b-2 border-primary/20 px-3 py-2 sm:px-6 sm:py-4 flex items-center justify-between shadow-lg backdrop-blur-sm">
+      {/* Barra de ações de seleção */}
+      {isSelectionMode && (
+        <SelectionActionBar
+          selectedCount={selectedConversations.size}
+          onPin={handleBatchPin}
+          onMute={handleBatchMute}
+          onArchive={handleBatchArchive}
+          onDelete={handleBatchDelete}
+          onCancel={handleCancelSelection}
+        />
+      )}
+
+      <div className={cn(
+        "relative bg-gradient-to-r from-card via-card to-accent/5 border-b-2 border-primary/20 px-3 py-2 sm:px-6 sm:py-4 flex items-center justify-between shadow-lg backdrop-blur-sm transition-all",
+        isSelectionMode && "mt-[60px]"
+      )}>
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
         <div className="flex items-center gap-2 sm:gap-3 relative z-10">
           <div className="relative group">
@@ -319,7 +413,14 @@ const Index = () => {
                   : "";
 
                 return (
-                  <ChatListItem
+                  <SwipeableConversation
+                    key={conversation.id}
+                    onSwipeLeft={() => handleArchive(conversation.id, conversation.archived)}
+                    onSwipeRight={() => handlePin(conversation.id)}
+                    isArchived={conversation.archived}
+                    isPinned={conversation.pinned}
+                  >
+                    <ChatListItem
                     key={conversation.id}
                     id={conversation.id}
                     name={displayName}
@@ -349,7 +450,12 @@ const Index = () => {
                     onMarkRead={() => handleMarkRead(conversation.id)}
                     onBlock={() => handleBlock(conversation.id)}
                     onReport={() => handleReport(conversation.id)}
+                    isSelectionMode={isSelectionMode}
+                    isSelected={selectedConversations.has(conversation.id)}
+                    onLongPress={() => handleLongPress(conversation.id)}
+                    onToggleSelect={() => handleToggleSelect(conversation.id)}
                   />
+                  </SwipeableConversation>
                 );
                   })
                 )}
@@ -363,14 +469,22 @@ const Index = () => {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir conversa?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {isSelectionMode 
+                ? `Excluir ${selectedConversations.size} conversa(s)?`
+                : 'Excluir conversa?'
+              }
+            </AlertDialogTitle>
             <AlertDialogDescription>
               Esta ação não pode ser desfeita. Todas as mensagens serão removidas permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction 
+              onClick={isSelectionMode ? handleConfirmBatchDelete : handleDelete} 
+              className="bg-destructive hover:bg-destructive/90"
+            >
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>

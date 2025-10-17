@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -43,6 +43,10 @@ interface ChatListItemProps {
   onMarkRead?: () => void;
   onBlock?: () => void;
   onReport?: () => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onLongPress?: () => void;
+  onToggleSelect?: () => void;
 }
 
 const ChatListItem = ({
@@ -71,8 +75,37 @@ const ChatListItem = ({
   onMarkRead,
   onBlock,
   onReport,
+  isSelectionMode = false,
+  isSelected = false,
+  onLongPress,
+  onToggleSelect,
 }: ChatListItemProps) => {
   const [showProfileView, setShowProfileView] = useState(false);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const [isPressing, setIsPressing] = useState(false);
+
+  const handleTouchStart = () => {
+    setIsPressing(true);
+    longPressTimer.current = setTimeout(() => {
+      onLongPress?.();
+    }, 500);
+  };
+
+  const handleTouchEnd = () => {
+    setIsPressing(false);
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleClick = () => {
+    if (isSelectionMode) {
+      onToggleSelect?.();
+    } else {
+      onClick();
+    }
+  };
 
   // Ícone de tipo de mensagem
   const getMessageIcon = () => {
@@ -96,13 +129,43 @@ const ChatListItem = ({
 
   return (
     <div
-      onClick={onClick}
+      onClick={handleClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onMouseDown={handleTouchStart}
+      onMouseUp={handleTouchEnd}
+      onMouseLeave={handleTouchEnd}
       className={cn(
         "group flex items-center gap-3 p-3 sm:p-4 hover:bg-secondary/50 cursor-pointer transition-all border-b border-border/50 animate-fade-in active:bg-secondary relative",
         isPinned && "bg-primary/5",
-        unread > 0 && "bg-primary/[0.02]"
+        unread > 0 && "bg-primary/[0.02]",
+        isSelected && "bg-primary/10",
+        isPressing && "scale-[0.98]"
       )}
     >
+      {/* Checkbox para seleção */}
+      {isSelectionMode && (
+        <div 
+          className="flex-shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect?.();
+          }}
+        >
+          <div className={cn(
+            "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+            isSelected 
+              ? "bg-primary border-primary" 
+              : "border-border bg-background"
+          )}>
+            {isSelected && (
+              <svg className="w-4 h-4 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
       {/* Indicador de fixado */}
       {isPinned && (
         <div className="absolute left-1 top-1/2 -translate-y-1/2">
@@ -186,8 +249,9 @@ const ChatListItem = ({
         </div>
       </div>
 
-      {/* Menu contextual */}
-      <ConversationContextMenu
+      {/* Menu contextual (ocultar em modo seleção) */}
+      {!isSelectionMode && (
+        <ConversationContextMenu
         conversationId={id}
         isArchived={isArchived}
         isMuted={isMuted}
@@ -202,6 +266,7 @@ const ChatListItem = ({
         onBlock={onBlock}
         onReport={onReport}
       />
+      )}
 
       <ProfileViewDialog
         open={showProfileView}
