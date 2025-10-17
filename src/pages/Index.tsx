@@ -475,53 +475,6 @@ const Index = () => {
             <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Button>
         </div>
-
-        {/* Histórico de Chamadas Recentes */}
-        {!searchQuery && recentCalls.length > 0 && (
-          <div className="mt-3">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Chamadas Recentes
-              </h3>
-            </div>
-            <div className="grid grid-cols-5 gap-2">
-              {recentCalls.slice(0, 5).map((call) => {
-                const isOutgoing = call.caller_id === user?.id;
-                const isMissed = call.status === 'missed';
-                const displayName = isOutgoing 
-                  ? call.conversation_name || "Contato"
-                  : call.caller?.full_name || call.caller?.username || "Desconhecido";
-                
-                return (
-                  <button
-                    key={call.id}
-                    onClick={() => {
-                      // Redirecionar para a conversa ou iniciar nova chamada
-                      navigate(`/chat/${call.conversation_id}`);
-                    }}
-                    className={cn(
-                      "flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-secondary/50 transition-all",
-                      isMissed && "bg-destructive/5"
-                    )}
-                  >
-                    <Avatar className={cn(
-                      "h-10 w-10 ring-2",
-                      isMissed ? "ring-destructive/30" : "ring-border"
-                    )}>
-                      <AvatarImage src={call.caller?.avatar_url} />
-                      <AvatarFallback className="text-xs bg-primary/20">
-                        {displayName.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-[10px] text-muted-foreground truncate w-full text-center">
-                      {displayName.split(' ')[0]}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="px-3 py-2 sm:p-4 bg-card border-b border-border">
