@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import GroupSettingsDialog from "./GroupSettingsDialog";
 import ProfileViewDialog from "./ProfileViewDialog";
 import { ChatMediaGallery } from "./ChatMediaGallery";
+import { formatLastSeen } from "@/utils/formatLastSeen";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -135,7 +136,7 @@ const ChatHeader = ({
           </h2>
           <p className="text-xs text-chat-header-foreground/70 truncate flex items-center gap-1">
             {online && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>}
-            {online ? "online" : lastSeen}
+            {online ? "online" : `visto por último ${formatLastSeen(lastSeen)}`}
           </p>
         </div>
       </div>
