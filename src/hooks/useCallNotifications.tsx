@@ -3,6 +3,7 @@ import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRingtone } from './useRingtone';
+import { sendCallNotification, cancelCallNotifications } from '@/utils/pushNotificationHelper';
 
 export interface CallNotification {
   id: string;
@@ -131,6 +132,23 @@ export const useCallNotifications = () => {
         .single();
 
       if (error) throw error;
+
+      // Enviar notificação push
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, full_name, avatar_url')
+        .eq('id', user.id)
+        .single();
+
+      await sendCallNotification(
+        userId,
+        data.id,
+        conversationId,
+        callType,
+        profile?.full_name || profile?.username || 'Alguém',
+        profile?.avatar_url
+      );
+
       return data;
     },
     onSuccess: () => {
@@ -151,6 +169,12 @@ export const useCallNotifications = () => {
         .single();
 
       if (error) throw error;
+
+      // Cancelar notificações em outros dispositivos
+      if (user?.id) {
+        await cancelCallNotifications(user.id, callId);
+      }
+
       return data;
     },
     onSuccess: () => {

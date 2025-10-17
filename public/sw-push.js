@@ -89,10 +89,10 @@ self.addEventListener('message', (event) => {
 
 // Ouvir notificações push
 self.addEventListener('push', (event) => {
-  console.log('Push notification received', event);
+  console.log('[SW Push] 🔔 Push notification received', event);
 
   if (!event.data) {
-    console.log('Push event but no data');
+    console.log('[SW Push] ⚠️ Push event but no data');
     return;
   }
 
@@ -100,15 +100,38 @@ self.addEventListener('push', (event) => {
     const data = event.data.json();
     const { notification, badge } = data;
     
+    console.log('[SW Push] 📦 Payload:', { 
+      title: notification.title,
+      category: notification.data?.category,
+      callId: notification.data?.callId,
+      badge
+    });
+    
     // Deduplicação: verificar se já mostramos esta notificação
     const notifId = notification.data?.notificationId;
     if (notifId) {
       const lastShown = notificationDedupeCache.get(notifId);
       if (lastShown && (Date.now() - lastShown < 5000)) {
-        console.log('Notificação duplicada ignorada:', notifId);
+        console.log('[SW Push] 🚫 Notificação duplicada ignorada:', notifId);
         return;
       }
       notificationDedupeCache.set(notifId, Date.now());
+    }
+    
+    // Se for ação de cancelar chamada, fechar notificação existente e não mostrar nova
+    if (notification.data?.action === 'cancel-call') {
+      const callId = notification.data?.callId;
+      if (callId) {
+        console.log('[SW Push] 🚫 Cancelando notificação de chamada:', callId);
+        event.waitUntil(
+          self.registration.getNotifications({ tag: `call:${callId}` })
+            .then(notifications => {
+              notifications.forEach(n => n.close());
+              console.log('[SW Push] ✅ Notificações fechadas:', notifications.length);
+            })
+        );
+      }
+      return; // Não mostrar notificação de cancelamento
     }
     
     // Atualizar badge com o contador recebido
@@ -124,19 +147,28 @@ self.addEventListener('push', (event) => {
     const priority = notification.data?.priority || 'normal';
     const category = notification.data?.category || 'messages';
     const isCall = category === 'call';
+    const callId = notification.data?.callId;
     
     // Usar configurações especiais para chamadas
     const prioritySettings = isCall 
       ? CALL_SETTINGS 
       : (PRIORITY_SETTINGS[priority] || PRIORITY_SETTINGS.normal);
     
+    // Tag única para chamadas (permite cancelamento multi-device)
+    const notificationTag = isCall && callId 
+      ? `call:${callId}` 
+      : (notification.tag || 'nosso-papo-notification');
+    
     // Configurações baseadas na prioridade/categoria
     const notificationOptions = {
       body: notification.body || 'Você tem uma nova mensagem',
       icon: notification.icon || '/app-icon-192.png',
       badge: notification.badge || '/app-icon-192.png',
-      tag: notification.tag || 'nosso-papo-notification',
-      data: notification.data || {},
+      tag: notificationTag,
+      data: { 
+        ...notification.data,
+        callId: callId, // Garantir que callId está presente
+      },
       renotify: isCall ? true : (notification.renotify || false),
       silent: notification.silent || prioritySettings.silent,
       requireInteraction: notification.requireInteraction || prioritySettings.requireInteraction,
@@ -212,25 +244,36 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  const urlToOpen = event.notification.data?.url || '/app';
+  // Para chamadas, abrir rota /call/:callId
+  const callId = event.notification.data?.callId;
   const conversationId = event.notification.data?.conversationId;
+  let urlToOpen = event.notification.data?.url || '/app';
+  
+  // Se for chamada, usar rota dedicada
+  if (isCall && callId) {
+    urlToOpen = `/call/${callId}`;
+    console.log('[SW] 📞 Abrindo chamada em:', urlToOpen);
+  }
 
   event.waitUntil(
     Promise.all([
       // Abrir ou focar na janela
       clients.matchAll({ type: 'window', includeUncontrolled: true })
         .then((windowClients) => {
-          // Verificar se já existe uma janela aberta
+          // Para chamadas, sempre abrir nova janela
+          if (isCall && clients.openWindow) {
+            return clients.openWindow(urlToOpen);
+          }
+          
+          // Para mensagens normais, tentar focar janela existente
           for (const client of windowClients) {
             if (client.url.includes(urlToOpen) && 'focus' in client) {
               return client.focus().then(focusedClient => {
-                // Notificar a tab que a notificação foi clicada
                 focusedClient.postMessage({
                   type: 'NOTIFICATION_CLICKED',
                   conversationId: conversationId,
                 });
                 
-                // Navegar para a conversa se necessário
                 if (conversationId && focusedClient.navigate) {
                   return focusedClient.navigate(`/chat/${conversationId}`);
                 }
@@ -238,7 +281,8 @@ self.addEventListener('notificationclick', (event) => {
               });
             }
           }
-          // Senão, abrir nova janela
+          
+          // Abrir nova janela
           if (clients.openWindow) {
             const targetUrl = conversationId 
               ? `/chat/${conversationId}` 

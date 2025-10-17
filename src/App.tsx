@@ -18,6 +18,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
 const Contacts = lazy(() => import("./pages/Contacts"));
 const PrivacySettings = lazy(() => import("./pages/PrivacySettings"));
+const Call = lazy(() => import("./pages/Call"));
 import { useAuth } from "./hooks/useAuth";
 import { useTheme } from "./hooks/useTheme";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
@@ -205,6 +206,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <PrivacySettings />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/call/:callId"
+                  element={
+                    <ProtectedRoute>
+                      <Call />
                     </ProtectedRoute>
                   }
                 />
