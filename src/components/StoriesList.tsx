@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Plus, Eye } from 'lucide-react';
 import { useStories } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { StoryViewer } from './StoryViewer';
 import { CreateStoryDialog } from './CreateStoryDialog';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,6 +20,37 @@ const getAvatarUrl = (avatarPath: string | null) => {
   const { data } = supabase.storage.from('avatars').getPublicUrl(avatarPath);
   return data.publicUrl;
 };
+
+const StoryAvatar = memo(({ story, onClick }: any) => {
+  const profile = story.profile;
+  const avatarUrl = getAvatarUrl(profile?.avatar_url);
+  
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 min-w-[70px]"
+    >
+      <div className="relative">
+        <Avatar className="h-16 w-16 ring-2 ring-primary">
+          <AvatarImage src={avatarUrl || undefined} />
+          <AvatarFallback>
+            {profile?.username?.substring(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        {story.count > 1 && (
+          <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-semibold">
+            {story.count}
+          </div>
+        )}
+      </div>
+      <span className="text-xs text-center truncate w-full">
+        {profile?.full_name || profile?.username}
+      </span>
+    </button>
+  );
+});
+
+StoryAvatar.displayName = 'StoryAvatar';
 
 export const StoriesList = () => {
   const { stories, isLoading } = useStories();
@@ -136,34 +167,19 @@ export const StoriesList = () => {
         {otherStories && otherStories.length > 0 ? (
           storyGroups
             .filter((group: any) => group[0]?.user_id !== user?.id)
-            .map((group: any, index: number) => {
+            .map((group: any) => {
               const firstStory = group[0];
-              const profile = firstStory.profile;
               const actualIndex = storyGroups.findIndex((g: any) => g[0]?.user_id === firstStory.user_id);
               
               return (
-                <button
+                <StoryAvatar
                   key={firstStory.user_id}
+                  story={{
+                    profile: firstStory.profile,
+                    count: group.length
+                  }}
                   onClick={() => setSelectedStoryIndex(actualIndex)}
-                  className="flex flex-col items-center gap-2 min-w-[70px]"
-                >
-                  <div className="relative">
-                    <Avatar className="h-16 w-16 ring-2 ring-primary">
-                      <AvatarImage src={getAvatarUrl(profile?.avatar_url) || undefined} />
-                      <AvatarFallback>
-                        {profile?.username?.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    {group.length > 1 && (
-                      <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs font-semibold">
-                        {group.length}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-xs text-center truncate w-full">
-                    {profile?.full_name || profile?.username}
-                  </span>
-                </button>
+                />
               );
             })
         ) : (

@@ -8,7 +8,9 @@ import { useStories } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ImagePlus, Loader2 } from 'lucide-react';
+import { ImagePlus, Loader2, Camera } from 'lucide-react';
+import { StoryCamera } from './StoryCamera';
+import { useVideoThumbnail } from '@/hooks/useVideoThumbnail';
 
 interface CreateStoryDialogProps {
   open: boolean;
@@ -20,9 +22,11 @@ export const CreateStoryDialog = ({ open, onOpenChange }: CreateStoryDialogProps
   const [preview, setPreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
   const { createStory } = useStories();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { generateThumbnail } = useVideoThumbnail();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -34,6 +38,16 @@ export const CreateStoryDialog = ({ open, onOpenChange }: CreateStoryDialogProps
       };
       reader.readAsDataURL(selectedFile);
     }
+  };
+
+  const handleCameraCapture = (capturedFile: File, capturedCaption?: string) => {
+    setFile(capturedFile);
+    if (capturedCaption) setCaption(capturedCaption);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreview(reader.result as string);
+    };
+    reader.readAsDataURL(capturedFile);
   };
 
   const handleSubmit = async () => {
@@ -82,6 +96,29 @@ export const CreateStoryDialog = ({ open, onOpenChange }: CreateStoryDialogProps
         .from('stories')
         .getPublicUrl(filePath);
 
+      // Generate thumbnail for videos
+      let thumbnailUrl = null;
+      if (isVideo) {
+        const thumbnail = await generateThumbnail(file);
+        if (thumbnail) {
+          const thumbPath = `${user.id}/thumb_${fileName}`;
+          const { error: thumbError } = await supabase.storage
+            .from('stories')
+            .upload(thumbPath, thumbnail, {
+              contentType: 'image/jpeg',
+              cacheControl: '86400',
+              upsert: false
+            });
+          
+          if (!thumbError) {
+            const { data: { publicUrl: thumbUrl } } = supabase.storage
+              .from('stories')
+              .getPublicUrl(thumbPath);
+            thumbnailUrl = thumbUrl;
+          }
+        }
+      }
+
       const mediaType = isVideo ? 'video' : 'image';
       createStory({ mediaUrl: publicUrl, mediaType, caption });
       onOpenChange(false);
@@ -101,44 +138,54 @@ export const CreateStoryDialog = ({ open, onOpenChange }: CreateStoryDialogProps
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Criar Story</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Criar Story</DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="media">Mídia</Label>
-            <div className="mt-2">
-              {preview ? (
-                <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-muted">
-                  {file?.type.startsWith('video/') ? (
-                    <video src={preview} controls className="w-full h-full object-cover" />
-                  ) : (
-                    <img src={preview} alt="Preview" className="w-full h-full object-cover" />
-                  )}
-                </div>
-              ) : (
-                <label
-                  htmlFor="media"
-                  className="flex flex-col items-center justify-center aspect-[9/16] border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50"
-                >
-                  <ImagePlus className="h-12 w-12 text-muted-foreground" />
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Clique para escolher uma imagem ou vídeo
-                  </p>
-                </label>
-              )}
-              <Input
-                id="media"
-                type="file"
-                accept="image/*,video/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="media">Mídia</Label>
+              <div className="mt-2 space-y-2">
+                {preview ? (
+                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-muted">
+                    {file?.type.startsWith('video/') ? (
+                      <video src={preview} controls className="w-full h-full object-cover" />
+                    ) : (
+                      <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      className="aspect-[9/16] flex flex-col items-center justify-center gap-2"
+                      onClick={() => setShowCamera(true)}
+                      type="button"
+                    >
+                      <Camera className="h-12 w-12 text-muted-foreground" />
+                      <span className="text-sm">Câmera</span>
+                    </Button>
+                    <label
+                      htmlFor="media"
+                      className="aspect-[9/16] flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50"
+                    >
+                      <ImagePlus className="h-12 w-12 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Galeria</span>
+                    </label>
+                  </div>
+                )}
+                <Input
+                  id="media"
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </div>
             </div>
-          </div>
 
           <div>
             <Label htmlFor="caption">Legenda (opcional)</Label>
@@ -177,5 +224,12 @@ export const CreateStoryDialog = ({ open, onOpenChange }: CreateStoryDialogProps
         </div>
       </DialogContent>
     </Dialog>
+
+    <StoryCamera
+      open={showCamera}
+      onOpenChange={setShowCamera}
+      onCapture={handleCameraCapture}
+    />
+    </>
   );
 };

@@ -10,9 +10,10 @@ import VideoEditor from "./VideoEditor";
 interface CameraCaptureProps {
   onCapture: (blob: Blob, type: "image" | "video", caption?: string) => void;
   onClose: () => void;
+  aspectRatio?: '16:9' | '9:16';
 }
 
-const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
+const CameraCapture = ({ onCapture, onClose, aspectRatio = '16:9' }: CameraCaptureProps) => {
   const {
     mode,
     facing,
@@ -126,6 +127,8 @@ const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
+
+  const aspectClass = aspectRatio === '9:16' ? 'aspect-[9/16]' : 'aspect-video';
 
   if (hasPermission === false) {
     return (
@@ -245,13 +248,13 @@ const CameraCapture = ({ onCapture, onClose }: CameraCaptureProps) => {
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       {/* Video stream */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative overflow-hidden flex items-center justify-center">
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className="absolute inset-0 w-full h-full object-cover"
+          className={cn("w-full max-w-2xl object-cover", aspectClass)}
         />
 
         {/* Top bar */}
