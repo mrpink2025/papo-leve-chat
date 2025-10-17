@@ -10,10 +10,24 @@ import { useToast } from '@/hooks/use-toast';
 interface StoryReplyInputProps {
   storyId: string;
   storyOwnerId: string;
+  storyMediaUrl: string;
+  storyMediaType: string;
+  storyCaption?: string;
   onReplySent?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
-export const StoryReplyInput = ({ storyId, storyOwnerId, onReplySent }: StoryReplyInputProps) => {
+export const StoryReplyInput = ({ 
+  storyId, 
+  storyOwnerId, 
+  storyMediaUrl, 
+  storyMediaType, 
+  storyCaption,
+  onReplySent,
+  onFocus,
+  onBlur
+}: StoryReplyInputProps) => {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const { user } = useAuth();
@@ -56,14 +70,21 @@ export const StoryReplyInput = ({ storyId, storyOwnerId, onReplySent }: StoryRep
         ]);
       }
 
-      // Enviar mensagem
+      // Enviar mensagem com metadados do story
       const { error: messageError } = await supabase
         .from('messages')
         .insert({
           conversation_id: conversationId,
           sender_id: user.id,
           content: message,
-          type: 'text',
+          type: 'story_reply',
+          metadata: {
+            story_id: storyId,
+            story_media_url: storyMediaUrl,
+            story_media_type: storyMediaType,
+            story_owner_id: storyOwnerId,
+            story_caption: storyCaption || null,
+          },
         });
 
       if (messageError) throw messageError;
@@ -108,6 +129,10 @@ export const StoryReplyInput = ({ storyId, storyOwnerId, onReplySent }: StoryRep
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && handleSendReply()}
+        onFocus={onFocus}
+        onBlur={() => {
+          if (!message.trim()) onBlur?.();
+        }}
         disabled={sending}
         className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-white/60"
       />

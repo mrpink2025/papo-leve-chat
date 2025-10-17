@@ -34,6 +34,7 @@ export const EnhancedStoryViewer = ({ storyGroups, initialIndex, onClose }: Enha
   const [showReactions, setShowReactions] = useState(false);
   const [showReply, setShowReply] = useState(false);
   const [showViewList, setShowViewList] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -79,7 +80,7 @@ export const EnhancedStoryViewer = ({ storyGroups, initialIndex, onClose }: Enha
   }, [currentStory]);
 
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || isTyping) return;
 
     setProgress(0);
     const isVideo = currentStory?.media_type === 'video';
@@ -98,7 +99,7 @@ export const EnhancedStoryViewer = ({ storyGroups, initialIndex, onClose }: Enha
     }, interval);
 
     return () => clearInterval(timer);
-  }, [currentGroupIndex, currentStoryIndex, isPaused]);
+  }, [currentGroupIndex, currentStoryIndex, isPaused, isTyping]);
 
   // Gerenciar áudio do vídeo
   useEffect(() => {
@@ -337,6 +338,10 @@ export const EnhancedStoryViewer = ({ storyGroups, initialIndex, onClose }: Enha
             <div className="absolute bottom-20 left-1/2 -translate-x-1/2">
               <StoryReactions 
                 storyId={currentStory.id}
+                storyOwnerId={currentStory.user_id}
+                storyMediaUrl={currentStory.media_url}
+                storyMediaType={currentStory.media_type}
+                storyCaption={currentStory.caption}
                 onReact={() => setShowReactions(false)}
               />
             </div>
@@ -349,7 +354,15 @@ export const EnhancedStoryViewer = ({ storyGroups, initialIndex, onClose }: Enha
                 <StoryReplyInput
                   storyId={currentStory.id}
                   storyOwnerId={currentStory.user_id}
-                  onReplySent={() => setShowReply(false)}
+                  storyMediaUrl={currentStory.media_url}
+                  storyMediaType={currentStory.media_type}
+                  storyCaption={currentStory.caption}
+                  onReplySent={() => {
+                    setShowReply(false);
+                    setIsTyping(false);
+                  }}
+                  onFocus={() => setIsTyping(true)}
+                  onBlur={() => setIsTyping(false)}
                 />
               ) : (
                 <div className="flex items-center gap-2">
@@ -360,7 +373,10 @@ export const EnhancedStoryViewer = ({ storyGroups, initialIndex, onClose }: Enha
                     😊 Reagir
                   </button>
                   <button
-                    onClick={() => setShowReply(true)}
+                    onClick={() => {
+                      setShowReply(true);
+                      setIsTyping(true);
+                    }}
                     className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white/80 rounded-full backdrop-blur-sm transition-colors text-sm text-left"
                   >
                     Responder ao story...

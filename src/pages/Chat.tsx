@@ -526,6 +526,52 @@ const Chat = () => {
     }
   };
 
+  const handleOpenStory = async (storyId: string) => {
+    try {
+      const { data: story, error } = await supabase
+        .from('stories')
+        .select('*')
+        .eq('id', storyId)
+        .single();
+      
+      if (error) throw error;
+      
+      if (!story) {
+        toast({
+          title: 'Story não encontrado',
+          description: 'Este story não existe mais',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      // Verificar se o story ainda está ativo
+      if (new Date(story.expires_at) < new Date()) {
+        toast({
+          title: 'Story expirado',
+          description: 'Este story não está mais disponível',
+          variant: 'default'
+        });
+        return;
+      }
+      
+      // Navegar para a página de stories com esse story específico
+      // Como não temos um viewer de story individual aqui, informar o usuário
+      toast({
+        title: 'Story ainda ativo',
+        description: 'Veja este story na página inicial',
+        variant: 'default'
+      });
+    } catch (error) {
+      console.error('[Chat] Erro ao abrir story:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível abrir o story',
+        variant: 'destructive'
+      });
+    }
+  };
+
   const isDirectChat = conversation.type === "direct";
   const displayName = isDirectChat && conversation.other_participant
     ? conversation.other_participant.full_name || conversation.other_participant.username || "Usuário"
@@ -840,6 +886,7 @@ const Chat = () => {
                 onSendMessage={handleSendPrivateMessage}
                 onAudioCall={handleAudioCallFromMenu}
                 onVideoCall={handleVideoCallFromMenu}
+                onOpenStory={handleOpenStory}
               />
             </div>
           );

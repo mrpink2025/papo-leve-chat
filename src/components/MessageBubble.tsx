@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { parseMentions, getUserColor } from "@/utils/mentionUtils";
 import { UserContextMenu } from "./UserContextMenu";
+import { StoryReplyPreview } from "./StoryReplyPreview";
+import { StoryReactionPreview } from "./StoryReactionPreview";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface MessageBubbleProps {
   id: string;
@@ -35,6 +39,7 @@ interface MessageBubbleProps {
   onSendMessage?: (userId: string) => void;
   onAudioCall?: (userId: string) => void;
   onVideoCall?: (userId: string) => void;
+  onOpenStory?: (storyId: string) => void;
 }
 
 const MessageBubble = ({
@@ -62,6 +67,7 @@ const MessageBubble = ({
   onSendMessage,
   onAudioCall,
   onVideoCall,
+  onOpenStory,
 }: MessageBubbleProps) => {
   const { groupedReactions, addReaction, removeReaction } = useReactions(id);
   const hasReactions = Object.keys(groupedReactions).length > 0;
@@ -69,6 +75,27 @@ const MessageBubble = ({
   // Processar menções no conteúdo
   const contentParts = type === "text" ? parseMentions(content) : [];
   const senderColor = senderId ? getUserColor(senderId) : "";
+  
+  // Detectar mensagens de story
+  const isStoryReply = type === 'story_reply' && metadata?.story_media_url;
+  const isStoryReaction = type === 'story_reaction' && metadata?.story_media_url;
+  const [storyExpired, setStoryExpired] = useState(false);
+
+  // Verificar se o story ainda está ativo
+  useEffect(() => {
+    if ((isStoryReply || isStoryReaction) && metadata?.story_id) {
+      supabase
+        .from('stories')
+        .select('expires_at')
+        .eq('id', metadata.story_id)
+        .single()
+        .then(({ data, error }) => {
+          if (error || !data || new Date(data.expires_at) < new Date()) {
+            setStoryExpired(true);
+          }
+        });
+    }
+  }, [isStoryReply, isStoryReaction, metadata?.story_id]);
 
   return (
     <div
@@ -130,6 +157,36 @@ const MessageBubble = ({
                   {senderName || "Usuário Desconhecido"}
                 </span>
               </UserContextMenu>
+            )}
+
+            {/* Story reply preview */}
+            {isStoryReply && (
+              <StoryReplyPreview
+                storyMediaUrl={metadata.story_media_url}
+                storyMediaType={metadata.story_media_type}
+                storyCaption={metadata.story_caption}
+                isExpired={storyExpired}
+                onStoryClick={() => {
+                  if (!storyExpired && onOpenStory) {
+                    onOpenStory(metadata.story_id);
+                  }
+                }}
+              />
+            )}
+
+            {/* Story reaction preview */}
+            {isStoryReaction && (
+              <StoryReactionPreview
+                storyMediaUrl={metadata.story_media_url}
+                storyMediaType={metadata.story_media_type}
+                emoji={metadata.emoji}
+                isExpired={storyExpired}
+                onStoryClick={() => {
+                  if (!storyExpired && onOpenStory) {
+                    onOpenStory(metadata.story_id);
+                  }
+                }}
+              />
             )}
 
             {/* Reply preview */}
