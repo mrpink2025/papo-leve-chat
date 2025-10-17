@@ -1076,6 +1076,35 @@ export type Database = {
         Args: { _session_id: string; _user_id: string }
         Returns: boolean
       }
+      search_conversations: {
+        Args: {
+          p_include_archived?: boolean
+          p_search_text: string
+          p_user_id: string
+        }
+        Returns: {
+          archived: boolean
+          conversation_avatar_url: string
+          conversation_id: string
+          conversation_name: string
+          conversation_type: string
+          conversation_updated_at: string
+          last_message_content: string
+          last_message_created_at: string
+          match_rank: number
+          member_count: number
+          muted: boolean
+          muted_until: string
+          other_avatar_url: string
+          other_bio: string
+          other_full_name: string
+          other_status: string
+          other_user_id: string
+          other_username: string
+          pinned: boolean
+          unread_count: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

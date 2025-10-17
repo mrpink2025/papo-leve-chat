@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Settings, Archive, LogOut, Download, Users } from "lucide-react";
+import { Search, Settings, Archive, LogOut, Download, Users, Filter } from "lucide-react";
 import ChatListItem from "@/components/ChatListItem";
 import { SwipeableConversation } from "@/components/SwipeableConversation";
 import { SelectionActionBar } from "@/components/SelectionActionBar";
 import { MuteDurationDialog } from "@/components/MuteDurationDialog";
+import { ConversationFilters, ConversationFilter } from "@/components/ConversationFilters";
+import { useSearchConversations } from "@/hooks/useSearchConversations";
 import { CreateGroupDialog } from "@/components/CreateGroupDialog";
 import { StoriesList } from "@/components/StoriesList";
 import { Input } from "@/components/ui/input";
@@ -43,11 +45,28 @@ const Index = () => {
   const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
   const [muteDurationDialogOpen, setMuteDurationDialogOpen] = useState(false);
   const [conversationToMute, setConversationToMute] = useState<{ id: string; name: string } | null>(null);
+  const [filters, setFilters] = useState<ConversationFilter>({
+    unreadOnly: false,
+    groupsOnly: false,
+    directOnly: false,
+    pinnedOnly: false,
+    mutedOnly: false,
+    withMediaOnly: false,
+  });
+  const [isSearching, setIsSearching] = useState(false);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { data: conversations = [], isLoading } = useConversations(user?.id, false);
   const { data: archivedConversations = [] } = useConversations(user?.id, true);
   const { canInstall, promptInstall, isIOS } = useInstallPrompt();
+  
+  // Busca full-text quando há texto de busca (mínimo 2 caracteres)
+  const shouldSearch = searchQuery.trim().length >= 2;
+  const { data: searchResults = [], isLoading: isSearchLoading } = useSearchConversations(
+    user?.id,
+    searchQuery,
+    activeTab === "archived"
+  );
   
   // Sincronização real-time centralizada
   useRealtimeSync(user?.id);
@@ -63,25 +82,68 @@ const Index = () => {
     }
   };
 
-  const filteredChats = (activeTab === "archived" ? archivedConversations : conversations)
-    .filter((conversation: any) => {
-      if (activeTab === "all" && conversation.archived) return false;
-      if (activeTab === "archived" && !conversation.archived) return false;
-      
-      const displayName = conversation.type === "direct"
-        ? conversation.other_participant?.username || "Usuário"
-        : conversation.name || "Grupo";
-      return displayName.toLowerCase().includes(searchQuery.toLowerCase());
-    })
-    .sort((a: any, b: any) => {
-      // Ordenar: fixadas primeiro, depois por timestamp
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      
-      const aTime = new Date(a.last_message?.created_at || a.updated_at).getTime();
-      const bTime = new Date(b.last_message?.created_at || b.updated_at).getTime();
-      return bTime - aTime;
-    });
+  const filteredChats = (() => {
+    // Se está buscando e há texto de busca, usar resultados da busca full-text
+    const baseConversations = shouldSearch
+      ? searchResults
+      : (activeTab === "archived" ? archivedConversations : conversations);
+
+    return baseConversations
+      .filter((conversation: any) => {
+        // Filtros de aba
+        if (activeTab === "all" && conversation.archived) return false;
+        if (activeTab === "archived" && !conversation.archived) return false;
+        
+        // Busca simples por nome (quando texto < 2 caracteres)
+        if (!shouldSearch && searchQuery.trim().length > 0) {
+          const displayName = conversation.type === "direct"
+            ? conversation.other_participant?.username || "Usuário"
+            : conversation.name || "Grupo";
+          if (!displayName.toLowerCase().includes(searchQuery.toLowerCase())) {
+            return false;
+          }
+        }
+        
+        // Aplicar filtros avançados
+        if (filters.unreadOnly && (!conversation.unread_count || conversation.unread_count === 0)) {
+          return false;
+        }
+        
+        if (filters.groupsOnly && conversation.type !== "group") {
+          return false;
+        }
+        
+        if (filters.directOnly && conversation.type !== "direct") {
+          return false;
+        }
+        
+        if (filters.pinnedOnly && !conversation.pinned) {
+          return false;
+        }
+        
+        if (filters.mutedOnly && !conversation.muted) {
+          return false;
+        }
+        
+        // TODO: Filtro withMediaOnly requer metadados de mensagens
+        
+        return true;
+      })
+      .sort((a: any, b: any) => {
+        // Se é busca full-text, ordenar por relevância
+        if (shouldSearch && a.match_rank && b.match_rank) {
+          return b.match_rank - a.match_rank;
+        }
+        
+        // Ordenar: fixadas primeiro, depois por timestamp
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        
+        const aTime = new Date(a.last_message?.created_at || a.updated_at).getTime();
+        const bTime = new Date(b.last_message?.created_at || b.updated_at).getTime();
+        return bTime - aTime;
+      });
+  })();
 
   const handleArchive = async (conversationId: string, archived: boolean) => {
     try {
@@ -409,15 +471,28 @@ const Index = () => {
       </div>
 
       <div className="px-3 py-2 sm:p-4 bg-card border-b border-border">
-        <div className="relative">
-          <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={16} />
-          <Input
-            placeholder="Buscar conversa..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 sm:pl-10 bg-secondary text-sm h-9 sm:h-10"
-          />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={16} />
+            <Input
+              placeholder={shouldSearch ? "Buscando em mensagens e contatos..." : "Buscar conversa..."}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 sm:pl-10 bg-secondary text-sm h-9 sm:h-10"
+            />
+            {shouldSearch && isSearchLoading && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+              </div>
+            )}
+          </div>
+          <ConversationFilters filters={filters} onFiltersChange={setFilters} />
         </div>
+        {shouldSearch && searchResults.length > 0 && (
+          <p className="text-xs text-muted-foreground mt-2">
+            {searchResults.length} resultado{searchResults.length !== 1 ? 's' : ''} encontrado{searchResults.length !== 1 ? 's' : ''}
+          </p>
+        )}
       </div>
 
       <div className="sticky top-0 z-10 bg-background">
@@ -447,7 +522,7 @@ const Index = () => {
 
         <TabsContent value={activeTab} className="flex-1 m-0">
           <ScrollArea className="h-full">
-            {isLoading ? (
+            {(isLoading || (shouldSearch && isSearchLoading)) ? (
               <div className="flex items-center justify-center h-96">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
@@ -455,7 +530,20 @@ const Index = () => {
               <div className="divide-y divide-border">
                 {filteredChats.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-96 text-muted-foreground">
-                    <p>Nenhuma conversa encontrada</p>
+                    {shouldSearch ? (
+                      <>
+                        <Search className="h-12 w-12 mb-4 opacity-50" />
+                        <p>Nenhum resultado para "{searchQuery}"</p>
+                        <p className="text-sm mt-2">Tente usar termos diferentes</p>
+                      </>
+                    ) : Object.values(filters).some(Boolean) ? (
+                      <>
+                        <Filter className="h-12 w-12 mb-4 opacity-50" />
+                        <p>Nenhuma conversa com os filtros aplicados</p>
+                      </>
+                    ) : (
+                      <p>Nenhuma conversa encontrada</p>
+                    )}
                   </div>
                 ) : (
                   filteredChats.map((conversation: any) => {
